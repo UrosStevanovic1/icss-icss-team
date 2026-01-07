@@ -3,5 +3,5 @@ Database name defaultdb
 Host pg-icss-mediadesign-icss.c.aivencloud.com
 Port 15687
 User avnadmin
-Password AVNS_OmX8alQ_qZEABnoB00v
+Password <see miro>
 SSL mode require
