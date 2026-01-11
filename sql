@@ -2,12 +2,12 @@
 -- PostgreSQL database dump
 --
 
-\restrict dBEe57BpbOAFXKnKfPDAW3HUTU7MFF039AYflVFzaQYSv5vLrKqLhV5zUqtxfna
+\restrict vxVif4eKoqfyx7ZncbtsjFJSE0dFVg5h7oG9T8UMQFL3SOax9EZTW3F7CdEiIRa
 
 -- Dumped from database version 18.1
 -- Dumped by pg_dump version 18.1
 
--- Started on 2026-01-07 10:32:22
+-- Started on 2026-01-11 11:25:27
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -81,6 +81,27 @@ CREATE TABLE public.lecturers (
 ALTER TABLE public.lecturers OWNER TO postgres;
 
 --
+-- TOC entry 223 (class 1259 OID 16479)
+-- Name: module_requiremnts; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.module_requiremnts (
+    module_id integer NOT NULL,
+    module_name character(1) NOT NULL,
+    room_type character(1) NOT NULL,
+    session_per_week integer,
+    semester character(1) NOT NULL,
+    total_sessions integer NOT NULL,
+    class_duration integer NOT NULL,
+    number_of_students integer NOT NULL,
+    onsite_online text NOT NULL,
+    CONSTRAINT module_requiremnts_onsite_online_check CHECK ((onsite_online = ANY (ARRAY['onsite'::text, 'online'::text])))
+);
+
+
+ALTER TABLE public.module_requiremnts OWNER TO postgres;
+
+--
 -- TOC entry 220 (class 1259 OID 16449)
 -- Name: modules; Type: TABLE; Schema: public; Owner: postgres
 --
@@ -100,46 +121,7 @@ CREATE TABLE public.modules (
 ALTER TABLE public.modules OWNER TO postgres;
 
 --
--- TOC entry 5026 (class 0 OID 16466)
--- Dependencies: 222
--- Data for Name: groups; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.groups (group_id, group_name, semester, number_of_students) FROM stdin;
-\.
-
-
---
--- TOC entry 5023 (class 0 OID 16432)
--- Dependencies: 219
--- Data for Name: lecturers; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.lecturers (lecturer_id, numberoflecturers, workingavailablity, workinghours, campus_mode, modulesharing, teachingdays, moduletype, classduration, parttime_fulltime) FROM stdin;
-\.
-
-
---
--- TOC entry 5024 (class 0 OID 16449)
--- Dependencies: 220
--- Data for Name: modules; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.modules (module_id, module_code, module_name, credit_score, lecture_hours, emodule_type, assessment_type, semester) FROM stdin;
-\.
-
-
---
--- TOC entry 5032 (class 0 OID 0)
--- Dependencies: 221
--- Name: groups_group_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.groups_group_id_seq', 1, false);
-
-
---
--- TOC entry 4875 (class 2606 OID 16478)
+-- TOC entry 4876 (class 2606 OID 16478)
 -- Name: groups groups_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -148,7 +130,7 @@ ALTER TABLE ONLY public.groups
 
 
 --
--- TOC entry 4869 (class 2606 OID 16448)
+-- TOC entry 4870 (class 2606 OID 16448)
 -- Name: lecturers lecturers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -157,7 +139,16 @@ ALTER TABLE ONLY public.lecturers
 
 
 --
--- TOC entry 4871 (class 2606 OID 16464)
+-- TOC entry 4878 (class 2606 OID 16494)
+-- Name: module_requiremnts module_requiremnts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.module_requiremnts
+    ADD CONSTRAINT module_requiremnts_pkey PRIMARY KEY (module_id);
+
+
+--
+-- TOC entry 4872 (class 2606 OID 16464)
 -- Name: modules modules_module_code_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -166,7 +157,7 @@ ALTER TABLE ONLY public.modules
 
 
 --
--- TOC entry 4873 (class 2606 OID 16462)
+-- TOC entry 4874 (class 2606 OID 16462)
 -- Name: modules modules_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -174,11 +165,11 @@ ALTER TABLE ONLY public.modules
     ADD CONSTRAINT modules_pkey PRIMARY KEY (module_id);
 
 
--- Completed on 2026-01-07 10:32:22
+-- Completed on 2026-01-11 11:25:27
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict dBEe57BpbOAFXKnKfPDAW3HUTU7MFF039AYflVFzaQYSv5vLrKqLhV5zUqtxfna
+\unrestrict vxVif4eKoqfyx7ZncbtsjFJSE0dFVg5h7oG9T8UMQFL3SOax9EZTW3F7CdEiIRa
 
