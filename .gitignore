@@ -27,3 +27,18 @@ yarn-error.log*
 backend/.env
 **/.env
 .env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+venv/
+.venv/
+
+# OS / IDE
+
+.vscode/
+.idea/
