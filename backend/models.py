@@ -2,8 +2,25 @@ from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, DateT
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
-
 from database import Base
+# backend/models.py
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
+
+# ... tus imports y modelos arriba ...
+
+class Availability(Base):
+    __tablename__ = "availabilities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lecturer_id = Column(Integer, ForeignKey("lecturers.id"), nullable=False)
+
+    day_of_week = Column(String, nullable=False)     # "Monday", "Tuesday", etc.
+    start_time = Column(String, nullable=False)      # "09:00"
+    end_time = Column(String, nullable=False)        # "11:00"
+    is_active = Column(Boolean, default=True)
+
+    lecturer = relationship("Lecturer")
 
 
 class StudyProgram(Base):
@@ -61,6 +78,7 @@ class Lecturer(Base):
     employment_type = Column(String(50), nullable=False)
     personal_email = Column(String(200), nullable=True)
     mdh_email = Column(String(200), nullable=True)
+    #phone = Column(String(50), nullable=True)
 
 
 class Group(Base):
@@ -74,16 +92,15 @@ class Group(Base):
 
 
 # =========================================================
-# SCHEDULER CONSTRAINTS (NEW)
+# SCHEDULER CONSTRAINTS
 # =========================================================
 
 class ConstraintType(Base):
     __tablename__ = "constraint_types"
-
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String(80), unique=True, nullable=False)
     description = Column(Text, nullable=False)
-    default_hardness = Column(String(10), nullable=False)  # HARD / SOFT (enforced by DB enum)
+    default_hardness = Column(String(10), nullable=False)
     is_active = Column(Boolean, nullable=False, server_default="true")
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
@@ -92,29 +109,22 @@ class Room(Base):
     __tablename__ = "rooms"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(120), nullable=False)
+    name = Column(String, unique=True, index=True, nullable=False)
     capacity = Column(Integer, nullable=False)
-    capabilities = Column(JSONB, nullable=False, server_default="[]")
-    is_active = Column(Boolean, nullable=False, server_default="true")
-    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    type = Column(String, nullable=False)  #  Lecture, Lab, Seminar
+    available = Column(Boolean, default=True, nullable=False)
 
 
 class SchedulerConstraint(Base):
     __tablename__ = "scheduler_constraints"
-
     id = Column(Integer, primary_key=True, index=True)
-
     constraint_type_id = Column(Integer, ForeignKey("constraint_types.id"), nullable=False)
-
-    hardness = Column(String(10), nullable=False)  # HARD / SOFT
+    hardness = Column(String(10), nullable=False)
     weight = Column(Integer, nullable=True)
-
-    scope = Column(String(20), nullable=False)  # GLOBAL, LECTURER, GROUP, MODULE, ROOM, PROGRAM, SPECIALIZATION
+    scope = Column(String(20), nullable=False)
     target_id = Column(Integer, nullable=True)
-
     config = Column(JSONB, nullable=False, server_default="{}")
     is_enabled = Column(Boolean, nullable=False, server_default="true")
     notes = Column(Text, nullable=True)
-
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())

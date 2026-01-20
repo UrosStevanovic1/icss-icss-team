@@ -340,6 +340,44 @@ def delete_constraint(id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"ok": True}
 
+# =========================
+# AVAILABILITIES (TEMP - IN MEMORY)
+# =========================
+_avail_store = []
+_avail_id = 1
+
+@app.get("/availabilities/")
+def read_availabilities():
+    return _avail_store
+
+
+@app.post("/availabilities/")
+def create_availability(payload: dict):
+    global _avail_id
+    item = {**payload, "id": _avail_id}
+    _avail_id += 1
+    _avail_store.append(item)
+    return item
+
+
+@app.put("/availabilities/{availability_id}")
+def update_availability(availability_id: int, payload: dict):
+    for i, row in enumerate(_avail_store):
+        if row.get("id") == availability_id:
+            _avail_store[i] = {**payload, "id": availability_id}
+            return _avail_store[i]
+    raise HTTPException(status_code=404, detail="Availability not found")
+
+
+@app.delete("/availabilities/{availability_id}")
+def delete_availability(availability_id: int):
+    for i, row in enumerate(_avail_store):
+        if row.get("id") == availability_id:
+            _avail_store.pop(i)
+            return {"ok": True}
+    raise HTTPException(status_code=404, detail="Availability not found")
+
+
 
 if __name__ == "__main__":
     import uvicorn

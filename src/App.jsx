@@ -2,9 +2,12 @@ import { useState } from "react";
 import "./App.css";
 
 import ProgramOverview from "./Components/ProgramOverview";
-import LecturerOverview from "./Components/LecturerOverview";
 import GroupOverview from "./Components/GroupOverview";
+import LecturerOverview from "./Components/LecturerOverview";
 import ScheduleOverview from "./Components/ScheduleOverview";
+import ConstraintOverview from "./Components/ConstraintOverview";
+import AvailabilityOverview from "./Components/AvailabilityOverview";
+
 
 export default function App() {
   const [page, setPage] = useState("programs");
@@ -18,13 +21,24 @@ export default function App() {
         {page === "groups" && <GroupOverview />}
         {page === "lecturers" && <LecturerOverview />}
         {page === "schedule" && <ScheduleOverview />}
+        {page === "constraints" && <ConstraintOverview />}
+        {page === "availability" && <AvailabilityOverview />}
+
       </div>
     </div>
   );
 }
 
 function Topbar({ page, setPage }) {
-  const tabs = ["programs", "groups", "lecturers", "schedule"];
+  const tabs = [
+    { key: "programs", label: "Programs Overview" },
+    { key: "groups", label: "Groups Overview" },
+    { key: "lecturers", label: "Lecturers Overview" },
+    { key: "schedule", label: "Schedule Overview" },
+    { key: "constraints", label: "Constraints Overview" },
+    { key: "availability", label: "Availability Overview" },
+
+  ];
 
   return (
     <div className="topbar">
@@ -33,11 +47,11 @@ function Topbar({ page, setPage }) {
       <div className="nav">
         {tabs.map((tab) => (
           <button
-            key={tab}
-            className={page === tab ? "active" : ""}
-            onClick={() => setPage(tab)}
+            key={tab.key}
+            className={page === tab.key ? "active" : ""}
+            onClick={() => setPage(tab.key)}
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)} Overview
+            {tab.label}
           </button>
         ))}
       </div>

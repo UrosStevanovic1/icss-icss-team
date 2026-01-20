@@ -1,17 +1,25 @@
 import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 
 load_dotenv()
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("DB_URL")
+# get url from environment
+raw_url = os.getenv("DATABASE_URL")
 
-if not SQLALCHEMY_DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set. Create a .env file in /backend.")
+if not raw_url:
+    raise ValueError("DATABASE_URL is not set. Please add it to your .env file.")
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# posgress url compatibility
+db_url = raw_url.replace("postgres://", "postgresql://", 1)
+
+# Create engine with SSL requirements for Neon
+engine = create_engine(
+    db_url,
+    pool_pre_ping=True,  # Helps handle dropped connections
+    connect_args={"sslmode": "require"}
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
