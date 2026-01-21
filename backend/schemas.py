@@ -159,7 +159,10 @@ class RoomCreate(BaseModel):
     name: str
     capacity: int
     type: str
-    available: bool = True
+    status: Optional[bool] = None
+    equipment: Optional[str] = None
+    location: Optional[str] = None
+
 
 
 class RoomResponse(RoomCreate):

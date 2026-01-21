@@ -112,7 +112,10 @@ class Room(Base):
     name = Column(String, unique=True, index=True, nullable=False)
     capacity = Column(Integer, nullable=False)
     type = Column(String, nullable=False)  #  Lecture, Lab, Seminar
-    available = Column(Boolean, default=True, nullable=False)
+    status = Column(Boolean, nullable=True)
+    equipment = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+
 
 
 class SchedulerConstraint(Base):
