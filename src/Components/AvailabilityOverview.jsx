@@ -132,11 +132,11 @@ export default function AvailabilityOverview() {
       <table className="table">
         <thead className="thead">
           <tr>
-            <th className="th" style={{ color: "#fff" }}>Lecturer</th>
-            <th className="th" style={{ color: "#fff" }}>Day of Week</th>
-            <th className="th" style={{ color: "#fff" }}>Time Slot</th>
-            <th className="th" style={{ color: "#fff" }}>Status</th>
-            <th className="th" style={{ color: "#fff" }}>Action</th>
+            <th className="th" style={{ color: "#333333" }}>Lecturer</th>
+            <th className="th" style={{ color: "#303030" }}>Day of Week</th>
+            <th className="th" style={{ color: "#303030" }}>Time Slot</th>
+            <th className="th" style={{ color: "#333333" }}>Status</th>
+            <th className="th" style={{ color: "#303030" }}>Action</th>
           </tr>
         </thead>
         <tbody>

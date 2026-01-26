@@ -45,7 +45,7 @@ const styles = {
     textAlign: "left",
     padding: "10px 15px",
     fontWeight: "600",
-    color: "#ffffff",
+    color: "#444", // Slightly darker for readability against white
   },
   tr: {
     borderBottom: "1px solid #eee",
@@ -86,7 +86,7 @@ const styles = {
 export default function GroupOverview() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState(""); // Added search state
+  const [query, setQuery] = useState("");
   const [formMode, setFormMode] = useState("overview");
   const [editingId, setEditingId] = useState(null);
 
@@ -105,10 +105,12 @@ export default function GroupOverview() {
       const data = await api.getGroups();
       const mapped = (Array.isArray(data) ? data : []).map((x) => ({
         id: x.id,
-        groupName: x.group_name,
+        // 👇 FIXED: Backend returns 'name', not 'group_name'
+        groupName: x.name,
         size: x.size,
         description: x.description || "",
         email: x.email || "",
+        // 👇 FIXED: Backend returns snake_case 'parent_group'
         parentGroup: x.parent_group || "",
         program: x.program || "",
       }));
@@ -147,8 +149,9 @@ export default function GroupOverview() {
   async function save() {
     if (!draft.groupName.trim()) return alert("Group name is required");
 
+    // 👇 FIXED: Payload keys must match Pydantic schema (name, size, description, email, parent_group)
     const payload = {
-      group_name: draft.groupName.trim(),
+      name: draft.groupName.trim(),
       size: Number(draft.size),
       description: draft.description.trim() || null,
       email: draft.email.trim() || null,
@@ -165,7 +168,8 @@ export default function GroupOverview() {
       await loadGroups();
       setFormMode("overview");
     } catch (e) {
-      alert("Backend error while saving group.");
+      console.error(e);
+      alert("Backend error while saving group. Check console.");
     }
   }
 
@@ -224,13 +228,13 @@ export default function GroupOverview() {
               <tr key={g.id} style={styles.tr}>
                 <td style={styles.td}>
                     <strong>{g.groupName}</strong>
-                    <div style={{fontSize:'0.75rem', color:'#888'}}>{g.description}</div>
                 </td>
                 <td style={styles.td}>{g.size}</td>
+                <td style={styles.td}>{g.description || "-"}</td>
                 <td style={styles.td}>{g.email || "-"}</td>
-                <td style={styles.td}>{g.program || "-"}</td>
                 <td style={styles.td}>{g.parentGroup || "-"}</td>
-                <td style={{...styles.td, textAlign:'right'}}>
+                <td style={styles.td}>{g.program || "-"}</td>
+                <td style={{...styles.td, textAlign:'right', whiteSpace:'nowrap'}}>
                   <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(g)}>Edit</button>
                   <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(g.id)}>Delete</button>
                 </td>
@@ -275,7 +279,7 @@ export default function GroupOverview() {
                     <input style={styles.input} value={draft.parentGroup} onChange={(e) => setDraft({ ...draft, parentGroup: e.target.value })} placeholder="e.g., Faculty of Engineering" />
                 </div>
 
-                {/*  Program */}
+                {/* Program */}
                 <div style={styles.formGroup}>
                     <label style={styles.label}>Program (can be empty)</label>
                     <input style={styles.input} value={draft.program} onChange={(e) => setDraft({ ...draft, program: e.target.value })} placeholder="e.g., Computer Science" />

@@ -1,6 +1,80 @@
 import { useEffect, useState } from "react";
 import api from "../api";
 
+
+const styles = {
+  container: {
+    padding: "20px",
+    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    color: "#333",
+    maxWidth: "100%",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "20px",
+    borderBottom: "1px solid #ccc",
+    paddingBottom: "15px",
+  },
+  title: {
+    margin: 0,
+    fontSize: "1.5rem",
+    color: "#333",
+  },
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    background: "#fff",
+    border: "1px solid #ddd",
+    fontSize: "0.9rem",
+  },
+  thead: {
+    background: "#f2f2f2",
+    borderBottom: "2px solid #ccc",
+  },
+  th: {
+    textAlign: "left",
+    padding: "10px 15px",
+    fontWeight: "600",
+    color: "#444",
+  },
+  tr: {
+    borderBottom: "1px solid #eee",
+  },
+  td: {
+    padding: "10px 15px",
+    verticalAlign: "middle",
+  },
+  btn: {
+    padding: "6px 12px",
+    borderRadius: "4px",
+    border: "1px solid transparent",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+    marginLeft: "5px",
+  },
+  primaryBtn: { background: "#007bff", color: "white" },
+  editBtn: { background: "#6c757d", color: "white" },
+  deleteBtn: { background: "#dc3545", color: "white" },
+  modalOverlay: {
+    position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+    background: "rgba(0,0,0,0.5)",
+    display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000,
+  },
+  modalContent: {
+    background: "white", padding: "25px", borderRadius: "8px",
+    width: "600px", maxWidth: "95%", maxHeight: "90vh", overflowY: "auto",
+    boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+  },
+  formGroup: { marginBottom: "15px" },
+  label: { display: "block", marginBottom: "5px", fontWeight: "bold", fontSize: "0.9rem" },
+  input: {
+    width: "100%", padding: "8px", borderRadius: "4px",
+    border: "1px solid #ccc", fontSize: "1rem", boxSizing: "border-box",
+  },
+};
+
 export default function ScheduleOverview() {
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11,7 +85,7 @@ export default function ScheduleOverview() {
 
   const [draft, setDraft] = useState({
     moduleName: "",
-    roomType: "Lecture Classroom", // Set a valid default
+    roomType: "Lecture Classroom",
     sessionsPerWeek: 1,
     semester: 1,
     totalSessions: 14,
@@ -42,7 +116,7 @@ export default function ScheduleOverview() {
     setEditingId(null);
     setDraft({
       moduleName: "",
-      roomType: "Lecture Classroom", // Reset to valid default
+      roomType: "Lecture Classroom",
       sessionsPerWeek: 1,
       semester: 1,
       totalSessions: 14,
@@ -111,67 +185,74 @@ export default function ScheduleOverview() {
   }
 
   return (
-    <div className="panel">
-      <div className="panel-header">
-        <h2>Schedule Overview (Modules)</h2>
+    <div style={styles.container}>
+      <div style={styles.header}>
+        <h2 style={styles.title}>Schedule Overview (Modules)</h2>
 
         <div style={{ display: "flex", gap: 10 }}>
-          <button className="add-btn" onClick={loadModules} type="button">
+          <button
+            style={{...styles.btn, background: "#fff", border: "1px solid #ccc", color:"#333"}}
+            onClick={loadModules}
+          >
             ↻ Refresh
           </button>
-          {formMode === "overview" && (
-            <button className="add-btn" onClick={openAdd} type="button">
-              + Add Module
-            </button>
-          )}
+          <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openAdd}>
+            + Add Module
+          </button>
         </div>
       </div>
 
-      {loading && <p style={{ marginTop: 10, fontSize: 13 }}>Loading modules...</p>}
+      {loading && <p>Loading modules...</p>}
 
       {loadError && (
-        <p style={{ marginTop: 10, fontSize: 13, color: "crimson" }}>
+        <p style={{ color: "crimson", fontWeight: "bold" }}>
           Backend error: {loadError}
         </p>
       )}
 
-      {!loading && !loadError && formMode === "overview" && (
-        <table>
-          <thead>
+      {!loading && !loadError && (
+        <table style={styles.table}>
+          <thead style={styles.thead}>
             <tr>
-              <th>Module ID</th>
-              <th>Module Name</th>
-              <th>Room Type</th>
-              <th>Sessions/Week</th>
-              <th>Semester</th>
-              <th>Total Sessions</th>
-              <th>Class Duration</th>
-              <th># Students</th>
-              <th>Onsite/Online</th>
-              <th style={{ width: 170 }}>Actions</th>
+              <th style={styles.th}>Name</th>
+              <th style={styles.th}>Room Type</th>
+              <th style={styles.th}>Sessions/Week</th>
+              <th style={styles.th}>Sem.</th>
+              <th style={styles.th}>Total</th>
+              <th style={styles.th}>Duration</th>
+              <th style={styles.th}>Students</th>
+              <th style={styles.th}>Type</th>
+              <th style={{...styles.th, textAlign: 'right', width: '160px'}}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {modules.map((m) => (
-              <tr key={m.module_id}>
-                <td>{m.module_id}</td>
-                <td>{m.module_name}</td>
-                <td>{m.room_type}</td>
-                <td>{m.sessions_per_week}</td>
-                <td>{m.semester}</td>
-                <td>{m.total_sessions}</td>
-                <td>{m.class_duration}</td>
-                <td>{m.number_of_students}</td>
-                <td>{m.onsite_online}</td>
-                <td>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => openEdit(m)} type="button">
-                      Edit
-                    </button>
-                    <button onClick={() => remove(m.module_id)} type="button">
-                      Delete
-                    </button>
-                  </div>
+              <tr key={m.module_id} style={styles.tr}>
+                <td style={styles.td}><strong>{m.module_name}</strong></td>
+                <td style={styles.td}>{m.room_type}</td>
+                <td style={styles.td}>{m.sessions_per_week}</td>
+                <td style={styles.td}>{m.semester}</td>
+                <td style={styles.td}>{m.total_sessions}</td>
+                <td style={styles.td}>{m.class_duration} min</td>
+                <td style={styles.td}>{m.number_of_students}</td>
+                <td style={styles.td}>
+                   <span style={{
+                      padding:"3px 8px",
+                      borderRadius:"4px",
+                      fontSize:"0.8rem",
+                      background: m.onsite_online === "Online" ? "#fff3cd" : "#d1e7dd",
+                      color: "#333"
+                   }}>
+                     {m.onsite_online}
+                   </span>
+                </td>
+                <td style={{...styles.td, textAlign: 'right', whiteSpace: 'nowrap'}}>
+                  <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(m)}>
+                    Edit
+                  </button>
+                  <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(m.module_id)}>
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
@@ -179,95 +260,110 @@ export default function ScheduleOverview() {
         </table>
       )}
 
+      {/* --- MODAL --- */}
       {(formMode === "add" || formMode === "edit") && (
-        <div className="form">
-          <label>
-            Module Name:
-            <input
-              value={draft.moduleName}
-              onChange={(e) => setDraft({ ...draft, moduleName: e.target.value })}
-              placeholder="e.g., Databases"
-            />
-          </label>
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
+               <h3 style={{margin:0}}>{formMode === "add" ? "Add Module" : "Edit Module"}</h3>
+               <button onClick={() => setFormMode("overview")} style={{border:'none', background:'transparent', fontSize:'1.5rem', cursor:'pointer'}}>×</button>
+            </div>
 
-          {/* UPDATED: Dropdown matching Room Overview */}
-          <label>
-            Room Type:
-            <select
-              value={draft.roomType}
-              onChange={(e) => setDraft({ ...draft, roomType: e.target.value })}
-            >
-              <option value="Lecture Classroom">Lecture Classroom</option>
-              <option value="Computer Lab">Computer Lab</option>
-              <option value="Game Design">Game Design</option>
-              <option value="Seminar">Seminar</option>
-            </select>
-          </label>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Module Name</label>
+              <input
+                style={styles.input}
+                value={draft.moduleName}
+                onChange={(e) => setDraft({ ...draft, moduleName: e.target.value })}
+                placeholder="e.g., Databases"
+              />
+            </div>
 
-          <label>
-            Sessions/Week:
-            <input
-              type="number"
-              value={draft.sessionsPerWeek}
-              onChange={(e) => setDraft({ ...draft, sessionsPerWeek: e.target.value })}
-            />
-          </label>
+            <div style={{display:'flex', gap:'15px'}}>
+                <div style={{...styles.formGroup, flex:1}}>
+                  <label style={styles.label}>Room Type</label>
+                  <select
+                    style={styles.input}
+                    value={draft.roomType}
+                    onChange={(e) => setDraft({ ...draft, roomType: e.target.value })}
+                  >
+                    <option value="Lecture Classroom">Lecture Classroom</option>
+                    <option value="Computer Lab">Computer Lab</option>
+                    <option value="Game Design">Game Design</option>
+                    <option value="Seminar">Seminar</option>
+                  </select>
+                </div>
+                <div style={{...styles.formGroup, flex:1}}>
+                   <label style={styles.label}>Mode</label>
+                    <select
+                      style={styles.input}
+                      value={draft.onsiteOnline}
+                      onChange={(e) => setDraft({ ...draft, onsiteOnline: e.target.value })}
+                    >
+                      <option value="Onsite">Onsite</option>
+                      <option value="Online">Online</option>
+                      <option value="Hybrid">Hybrid</option>
+                    </select>
+                </div>
+            </div>
 
-          <label>
-            Semester:
-            <input
-              type="number"
-              value={draft.semester}
-              onChange={(e) => setDraft({ ...draft, semester: e.target.value })}
-            />
-          </label>
+            <div style={{display:'flex', gap:'15px'}}>
+                <div style={{...styles.formGroup, flex:1}}>
+                  <label style={styles.label}>Sessions/Week</label>
+                  <input
+                    style={styles.input}
+                    type="number"
+                    value={draft.sessionsPerWeek}
+                    onChange={(e) => setDraft({ ...draft, sessionsPerWeek: e.target.value })}
+                  />
+                </div>
+                <div style={{...styles.formGroup, flex:1}}>
+                  <label style={styles.label}>Semester</label>
+                  <input
+                    style={styles.input}
+                    type="number"
+                    value={draft.semester}
+                    onChange={(e) => setDraft({ ...draft, semester: e.target.value })}
+                  />
+                </div>
+            </div>
 
-          <label>
-            Total Sessions:
-            <input
-              type="number"
-              value={draft.totalSessions}
-              onChange={(e) => setDraft({ ...draft, totalSessions: e.target.value })}
-            />
-          </label>
+            <div style={{display:'flex', gap:'15px'}}>
+                <div style={{...styles.formGroup, flex:1}}>
+                  <label style={styles.label}>Total Sessions</label>
+                  <input
+                    style={styles.input}
+                    type="number"
+                    value={draft.totalSessions}
+                    onChange={(e) => setDraft({ ...draft, totalSessions: e.target.value })}
+                  />
+                </div>
+                <div style={{...styles.formGroup, flex:1}}>
+                  <label style={styles.label}>Duration (min)</label>
+                  <input
+                    style={styles.input}
+                    type="number"
+                    value={draft.classDuration}
+                    onChange={(e) => setDraft({ ...draft, classDuration: e.target.value })}
+                  />
+                </div>
+                 <div style={{...styles.formGroup, flex:1}}>
+                  <label style={styles.label}># Students</label>
+                  <input
+                    style={styles.input}
+                    type="number"
+                    value={draft.numberOfStudents}
+                    onChange={(e) => setDraft({ ...draft, numberOfStudents: e.target.value })}
+                  />
+                </div>
+            </div>
 
-          <label>
-            Class Duration (min):
-            <input
-              type="number"
-              value={draft.classDuration}
-              onChange={(e) => setDraft({ ...draft, classDuration: e.target.value })}
-            />
-          </label>
-
-          <label>
-            # Students:
-            <input
-              type="number"
-              value={draft.numberOfStudents}
-              onChange={(e) => setDraft({ ...draft, numberOfStudents: e.target.value })}
-            />
-          </label>
-
-          <label>
-            Onsite/Online:
-            <select
-              value={draft.onsiteOnline}
-              onChange={(e) => setDraft({ ...draft, onsiteOnline: e.target.value })}
-            >
-              <option value="Onsite">Onsite</option>
-              <option value="Online">Online</option>
-              <option value="Hybrid">Hybrid</option>
-            </select>
-          </label>
-
-          <div className="buttons">
-            <button onClick={() => setFormMode("overview")} type="button">
-              Cancel
-            </button>
-            <button className="save" onClick={save} type="button">
-              {formMode === "add" ? "Create" : "Update"}
-            </button>
+            <div style={{marginTop: '25px', display:'flex', justifyContent:'flex-end', gap:'10px'}}>
+                <button style={{...styles.btn, background:'#f8f9fa', border:'1px solid #ddd', color:'#333'}} onClick={() => setFormMode("overview")}>Cancel</button>
+                <button style={{...styles.btn, ...styles.primaryBtn}} onClick={save}>
+                    {formMode === "add" ? "Create" : "Update"}
+                </button>
+            </div>
           </div>
         </div>
       )}

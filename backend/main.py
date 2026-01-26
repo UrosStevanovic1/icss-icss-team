@@ -6,31 +6,17 @@ import models
 import schemas
 from database import engine, get_db
 
+app = FastAPI(title="Study Program Backend")
 
-app = FastAPI(
-    title="Study Program Backend",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
-)
-
-# --- CORS (LOCAL + DEPLOY) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        # If you have Vercel/Render frontend URLs, add them here:
-        # "https://your-frontend.vercel.app",
-        # "https://your-frontend.onrender.com",
-        "*",  # keep if your professor expects easy access
-    ],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Create tables if they don't exist (won't crash if DB not ready)
+# Create tables
 try:
     models.Base.metadata.create_all(bind=engine)
     print("✅ DB connected. Tables verified/created.")
@@ -40,19 +26,15 @@ except Exception as e:
 
 @app.get("/")
 def root():
-    return {"message": "Study Program Backend Online (Real DB)"}
+    return {"message": "Backend Online"}
 
 
 # =========================
-# STUDY PROGRAMS (CRUD)
+# STUDY PROGRAMS
 # =========================
 @app.get("/study-programs/", response_model=list[schemas.StudyProgramResponse])
 def read_programs(db: Session = Depends(get_db)):
-    return (
-        db.query(models.StudyProgram)
-        .options(joinedload(models.StudyProgram.specializations))
-        .all()
-    )
+    return db.query(models.StudyProgram).options(joinedload(models.StudyProgram.specializations)).all()
 
 
 @app.post("/study-programs/", response_model=schemas.StudyProgramResponse)
@@ -69,10 +51,8 @@ def update_program(program_id: int, program: schemas.StudyProgramCreate, db: Ses
     db_program = db.query(models.StudyProgram).filter(models.StudyProgram.id == program_id).first()
     if not db_program:
         raise HTTPException(status_code=404, detail="Program not found")
-
     for k, v in program.model_dump().items():
         setattr(db_program, k, v)
-
     db.commit()
     db.refresh(db_program)
     return db_program
@@ -83,22 +63,31 @@ def delete_program(program_id: int, db: Session = Depends(get_db)):
     db_program = db.query(models.StudyProgram).filter(models.StudyProgram.id == program_id).first()
     if not db_program:
         raise HTTPException(status_code=404, detail="Program not found")
-
     db.delete(db_program)
     db.commit()
     return {"ok": True}
 
 
 # =========================
-# SPECIALIZATIONS (CRUD)
+# SPECIALIZATIONS
 # =========================
+@app.get("/specializations/", response_model=list[schemas.SpecializationResponse])
+def read_specializations(db: Session = Depends(get_db)):
+    return db.query(models.Specialization).all()
+
+
 @app.post("/specializations/", response_model=schemas.SpecializationResponse)
 def create_specialization(spec: schemas.SpecializationCreate, db: Session = Depends(get_db)):
+    # 1. Fetch Program to get its Name for the text column
     program = db.query(models.StudyProgram).filter(models.StudyProgram.id == spec.program_id).first()
     if not program:
         raise HTTPException(status_code=404, detail="Program not found")
 
-    db_spec = models.Specialization(**spec.model_dump())
+    # 2. Autofill 'study_program' column
+    data = spec.model_dump()
+    data["study_program"] = program.name
+
+    db_spec = models.Specialization(**data)
     db.add(db_spec)
     db.commit()
     db.refresh(db_spec)
@@ -111,10 +100,18 @@ def update_specialization(spec_id: int, spec: schemas.SpecializationCreate, db: 
     if not db_spec:
         raise HTTPException(status_code=404, detail="Specialization not found")
 
-    db_spec.name = spec.name
-    db_spec.acronym = spec.acronym
-    db_spec.start_date = spec.start_date
-    db_spec.is_active = spec.is_active
+    # Update logic (keeping study_program in sync)
+    data = spec.model_dump()
+    if spec.program_id != db_spec.program_id:
+        program = db.query(models.StudyProgram).filter(models.StudyProgram.id == spec.program_id).first()
+        if program:
+            data["study_program"] = program.name
+    else:
+        # Preserve existing name if program didn't change
+        data["study_program"] = db_spec.study_program
+
+    for k, v in data.items():
+        setattr(db_spec, k, v)
 
     db.commit()
     db.refresh(db_spec)
@@ -126,14 +123,13 @@ def delete_specialization(spec_id: int, db: Session = Depends(get_db)):
     db_spec = db.query(models.Specialization).filter(models.Specialization.id == spec_id).first()
     if not db_spec:
         raise HTTPException(status_code=404, detail="Specialization not found")
-
     db.delete(db_spec)
     db.commit()
     return {"ok": True}
 
 
 # =========================
-# MODULES (CRUD)
+# MODULES
 # =========================
 @app.get("/modules/", response_model=list[schemas.ModuleResponse])
 def read_modules(db: Session = Depends(get_db)):
@@ -142,6 +138,9 @@ def read_modules(db: Session = Depends(get_db)):
 
 @app.post("/modules/", response_model=schemas.ModuleResponse)
 def create_module(module: schemas.ModuleCreate, db: Session = Depends(get_db)):
+    existing = db.query(models.Module).filter(models.Module.module_code == module.module_code).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Module code already exists")
     db_module = models.Module(**module.model_dump())
     db.add(db_module)
     db.commit()
@@ -149,33 +148,30 @@ def create_module(module: schemas.ModuleCreate, db: Session = Depends(get_db)):
     return db_module
 
 
-@app.put("/modules/{module_id}", response_model=schemas.ModuleResponse)
-def update_module(module_id: int, module: schemas.ModuleCreate, db: Session = Depends(get_db)):
-    db_module = db.query(models.Module).filter(models.Module.module_id == module_id).first()
+@app.put("/modules/{module_code}", response_model=schemas.ModuleResponse)
+def update_module(module_code: str, module: schemas.ModuleCreate, db: Session = Depends(get_db)):
+    db_module = db.query(models.Module).filter(models.Module.module_code == module_code).first()
     if not db_module:
         raise HTTPException(status_code=404, detail="Module not found")
-
     for k, v in module.model_dump().items():
         setattr(db_module, k, v)
-
     db.commit()
     db.refresh(db_module)
     return db_module
 
 
-@app.delete("/modules/{module_id}")
-def delete_module(module_id: int, db: Session = Depends(get_db)):
-    db_module = db.query(models.Module).filter(models.Module.module_id == module_id).first()
+@app.delete("/modules/{module_code}")
+def delete_module(module_code: str, db: Session = Depends(get_db)):
+    db_module = db.query(models.Module).filter(models.Module.module_code == module_code).first()
     if not db_module:
         raise HTTPException(status_code=404, detail="Module not found")
-
     db.delete(db_module)
     db.commit()
     return {"ok": True}
 
 
 # =========================
-# LECTURERS (CRUD)
+# LECTURERS
 # =========================
 @app.get("/lecturers/", response_model=list[schemas.LecturerResponse])
 def read_lecturers(db: Session = Depends(get_db)):
@@ -196,10 +192,8 @@ def update_lecturer(lecturer_id: int, lecturer: schemas.LecturerCreate, db: Sess
     row = db.query(models.Lecturer).filter(models.Lecturer.id == lecturer_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Lecturer not found")
-
     for k, v in lecturer.model_dump().items():
         setattr(row, k, v)
-
     db.commit()
     db.refresh(row)
     return row
@@ -210,14 +204,13 @@ def delete_lecturer(lecturer_id: int, db: Session = Depends(get_db)):
     row = db.query(models.Lecturer).filter(models.Lecturer.id == lecturer_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Lecturer not found")
-
     db.delete(row)
     db.commit()
     return {"ok": True}
 
 
 # =========================
-# GROUPS (CRUD)
+# GROUPS
 # =========================
 @app.get("/groups/", response_model=list[schemas.GroupResponse])
 def read_groups(db: Session = Depends(get_db)):
@@ -238,10 +231,8 @@ def update_group(group_id: int, group: schemas.GroupCreate, db: Session = Depend
     row = db.query(models.Group).filter(models.Group.id == group_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Group not found")
-
     for k, v in group.model_dump().items():
         setattr(row, k, v)
-
     db.commit()
     db.refresh(row)
     return row
@@ -252,7 +243,6 @@ def delete_group(group_id: int, db: Session = Depends(get_db)):
     row = db.query(models.Group).filter(models.Group.id == group_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Group not found")
-
     db.delete(row)
     db.commit()
     return {"ok": True}
@@ -267,7 +257,7 @@ def read_constraint_types(db: Session = Depends(get_db)):
 
 
 # =========================
-# ROOMS (CRUD)
+# ROOMS
 # =========================
 @app.get("/rooms/", response_model=list[schemas.RoomResponse])
 def read_rooms(db: Session = Depends(get_db)):
@@ -288,13 +278,8 @@ def update_room(room_id: int, room: schemas.RoomCreate, db: Session = Depends(ge
     db_room = db.query(models.Room).filter(models.Room.id == room_id).first()
     if not db_room:
         raise HTTPException(status_code=404, detail="Room not found")
-
-    # Update fields to match new model
-    db_room.name = room.name
-    db_room.capacity = room.capacity
-    db_room.type = room.type
-    db_room.available = room.available
-
+    for k, v in room.model_dump().items():
+        setattr(db_room, k, v)
     db.commit()
     db.refresh(db_room)
     return db_room
@@ -305,14 +290,13 @@ def delete_room(room_id: int, db: Session = Depends(get_db)):
     db_room = db.query(models.Room).filter(models.Room.id == room_id).first()
     if not db_room:
         raise HTTPException(status_code=404, detail="Room not found")
-
     db.delete(db_room)
     db.commit()
     return {"ok": True}
 
 
 # =========================
-# SCHEDULER CONSTRAINTS (CRUD)
+# SCHEDULER CONSTRAINTS
 # =========================
 @app.get("/scheduler-constraints/", response_model=list[schemas.SchedulerConstraintResponse])
 def read_scheduler_constraints(db: Session = Depends(get_db)):
@@ -333,10 +317,8 @@ def update_constraint(id: int, c: schemas.SchedulerConstraintCreate, db: Session
     db_c = db.query(models.SchedulerConstraint).filter(models.SchedulerConstraint.id == id).first()
     if not db_c:
         raise HTTPException(status_code=404, detail="Constraint not found")
-
     for k, v in c.model_dump().items():
         setattr(db_c, k, v)
-
     db.commit()
     db.refresh(db_c)
     return db_c
@@ -347,14 +329,13 @@ def delete_constraint(id: int, db: Session = Depends(get_db)):
     db_c = db.query(models.SchedulerConstraint).filter(models.SchedulerConstraint.id == id).first()
     if not db_c:
         raise HTTPException(status_code=404, detail="Constraint not found")
-
     db.delete(db_c)
     db.commit()
     return {"ok": True}
 
 
 # =========================
-# AVAILABILITIES (TEMP - IN MEMORY)
+# AVAILABILITIES (IN MEMORY)
 # =========================
 _avail_store = []
 _avail_id = 1
@@ -392,29 +373,7 @@ def delete_availability(availability_id: int):
     raise HTTPException(status_code=404, detail="Availability not found")
 
 
-# =========================
-# UPLOAD
-# =========================
-MAX_MB = 10
-ALLOWED_TYPES = {
-    "text/csv",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-}
-
-
-@app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(status_code=400, detail="Only CSV/XLSX allowed")
-
-    data = await file.read()
-    if len(data) > MAX_MB * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large")
-
-    return {"ok": True, "filename": file.filename}
-
-
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

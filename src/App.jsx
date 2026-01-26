@@ -33,7 +33,7 @@ export default function App() {
 
 function Topbar({ page, setPage }) {
   const tabs = [
-    { key: "programs", label: "Programs Overview" },
+    { key: "programs", label: "Study Programs" },
     { key: "groups", label: "Groups Overview" },
     { key: "lecturers", label: "Lecturers Overview" },
     { key: "modules", label: "Modules Overview" },
@@ -45,7 +45,7 @@ function Topbar({ page, setPage }) {
 
   return (
     <div className="topbar">
-      <div className="logo">CS2</div>
+      <div className="logo">MDH</div>
 
       <div className="nav">
         {tabs.map((tab) => (
@@ -59,7 +59,7 @@ function Topbar({ page, setPage }) {
         ))}
       </div>
 
-      <div className="user">👤</div>
+      <div className="user">User</div>
     </div>
   );
 }
