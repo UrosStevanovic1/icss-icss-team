@@ -17,7 +17,7 @@ export default function ConstraintOverview() {
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
 
-  // Constants for form helpers
+  // Helper lists for the "AI Parameters"
   const ROOM_TYPES = ["Lecture Classroom", "Computer Lab", "Game Design", "Seminar"];
   const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -28,12 +28,12 @@ export default function ConstraintOverview() {
 
   async function loadData() {
     const results = await Promise.allSettled([
-      api.getConstraints(),        // 0
-      api.getConstraintTypes(),    // 1
-      api.getLecturers(),          // 2
-      api.getGroups(),             // 3
-      api.getModules(),            // 4
-      api.getRooms(),              // 5
+      api.getConstraints(),
+      api.getConstraintTypes(),
+      api.getLecturers(),
+      api.getGroups(),
+      api.getModules(),
+      api.getRooms(),
     ]);
 
     const getValue = (i) => (results[i].status === "fulfilled" ? results[i].value : null);
@@ -45,19 +45,11 @@ export default function ConstraintOverview() {
     const mData = getValue(4) || [];
     const rData = getValue(5) || [];
 
-    // Log if anything specifically failed
-    results.forEach((r, i) => {
-      if (r.status === "rejected") {
-        console.error("loadData failed at index:", i, r.reason);
-      }
-    });
-
     setConstraints(cData);
     setTypes(tData);
 
     setTargets((prev) => ({
       ...prev,
-      // ✅ FIX: Correctly map first_name + last_name
       LECTURER: lData.map((x) => ({
         id: x.id,
         name: `${x.first_name} ${x.last_name || ""}`.trim(),
@@ -67,8 +59,8 @@ export default function ConstraintOverview() {
         name: x.name || "Unnamed",
       })),
       MODULE: mData.map((x) => ({
-        id: x.module_code || x.module_id, // Safety check for ID field
-        name: x.name || x.module_name || "Unnamed",
+        id: x.module_code || x.module_code, // Use module_code as ID for modules
+        name: x.name || "Unnamed",
       })),
       ROOM: rData.map((x) => ({
         id: x.id,
@@ -81,15 +73,12 @@ export default function ConstraintOverview() {
   function openAdd() {
     setEditingId(null);
     setDraft({
-      name: "",
       constraint_type_id: types[0]?.id || 1,
-      hardness: "HARD",
-      scope: "GLOBAL",
+      hardness: "Hard",
+      scope: "Global", // Capitalized to match Literal in schema if needed, or normalized in save
       target_id: 0,
-      valid_from: "2026-04-01",
-      valid_to: "2026-09-30",
-      constraint_rule: "",
-      active: true,
+      notes: "",
+      is_enabled: true,
       config: {},
     });
     setModalOpen(true);
@@ -97,15 +86,27 @@ export default function ConstraintOverview() {
 
   function openEdit(c) {
     setEditingId(c.id);
-    setDraft({ ...c });
+    setDraft({
+        ...c,
+        // Ensure defaults if fields are missing
+        config: c.config || {},
+        notes: c.notes || "",
+        is_enabled: c.is_enabled ?? true
+    });
     setModalOpen(true);
   }
 
   async function save() {
     try {
+      // ✅ FIX: Map Frontend Draft -> Backend Schema (SchedulerConstraintCreate)
       const payload = {
-        ...draft,
+        constraint_type_id: Number(draft.constraint_type_id),
+        hardness: draft.hardness,
+        scope: draft.scope,
         target_id: Number(draft.target_id),
+        config: draft.config,
+        is_enabled: draft.is_enabled,
+        notes: draft.notes
       };
 
       if (editingId) {
@@ -117,7 +118,7 @@ export default function ConstraintOverview() {
       loadData();
     } catch (e) {
       console.error(e);
-      alert("Error saving constraint.");
+      alert("Error saving constraint. Check console for details.");
     }
   }
 
@@ -132,17 +133,18 @@ export default function ConstraintOverview() {
     }
   }
 
+  // This renders the specific parameters the AI needs to follow the rule
   const renderParameters = () => {
     if (!draft) return null;
 
-    // NOTE: If your DB constraint types use 'name' instead of 'code', change .code to .name below
     const activeType = types.find((t) => t.id === Number(draft.constraint_type_id));
-    const activeCode = activeType?.code || activeType?.name;
+    const activeName = activeType?.name || "";
 
-    if (activeCode === "REQUIRED_ROOM_TYPE" || activeCode === "AVOID_ROOM_TYPE") {
+    // Example: If rule is "Required Room Type", AI needs to know WHICH type.
+    if (activeName.includes("Room Type")) {
       return (
         <div className="formGroup">
-          <label className="label">Room Type (Format: String)</label>
+          <label className="label">Parameter: Room Type</label>
           <select
             className="input"
             value={draft.config?.room_type || ""}
@@ -161,10 +163,11 @@ export default function ConstraintOverview() {
       );
     }
 
-    if (activeCode === "TEACHER_UNAVAILABLE") {
+    // Example: If rule is about specific Days
+    if (activeName.includes("Day") || activeName.includes("Unavailable")) {
       return (
         <div className="formGroup">
-          <label className="label">Day (Format: String)</label>
+          <label className="label">Parameter: Day</label>
           <select
             className="input"
             value={draft.config?.day || ""}
@@ -181,18 +184,22 @@ export default function ConstraintOverview() {
       );
     }
 
+    // Fallback: Raw JSON for advanced/unknown rules
     return (
       <div className="formGroup">
-        <label className="label">Rule Configuration (JSON)</label>
+        <label className="label">AI Parameters (JSON)</label>
+        <div style={{fontSize: '0.8rem', color: '#666', marginBottom: '5px'}}>
+            Advanced settings for the AI Scheduler.
+        </div>
         <textarea
           className="input"
-          style={{ height: "60px", fontFamily: "monospace" }}
+          style={{ height: "60px", fontFamily: "monospace", fontSize: "0.85rem" }}
           value={JSON.stringify(draft.config || {})}
           onChange={(e) => {
             try {
               setDraft({ ...draft, config: JSON.parse(e.target.value) });
             } catch (err) {
-              // ignore invalid JSON while typing
+              // Allow typing invalid JSON temporarily
             }
           }}
         />
@@ -200,7 +207,7 @@ export default function ConstraintOverview() {
     );
   };
 
-  const targetOptions = draft ? targets[draft.scope] || [] : [];
+  const targetOptions = draft ? targets[draft.scope.toUpperCase()] || [] : [];
 
   return (
     <div className="container">
@@ -214,9 +221,9 @@ export default function ConstraintOverview() {
       <table className="table">
         <thead className="thead">
           <tr>
-            <th className="th">Constraint Name</th>
-            <th className="th">Scope/Target</th>
-            <th className="th">Validity</th>
+            <th className="th">Constraint Type</th>
+            <th className="th">Target</th>
+            <th className="th">Notes</th>
             <th className="th">Active</th>
             <th className="th">Priority</th>
             <th className="th">Action</th>
@@ -226,31 +233,31 @@ export default function ConstraintOverview() {
         <tbody>
           {constraints.map((c) => {
             const typeObj = types.find((t) => t.id === c.constraint_type_id);
-            const typeCode = typeObj?.code || typeObj?.name || "N/A";
+            const typeName = typeObj?.name || "Unknown Type";
 
-            const targetList = targets[c.scope] || [];
-            // Safe find in case target ID types mismatch (string vs int)
-            const targetName = targetList.find((t) => String(t.id) === String(c.target_id))?.name || "Unknown/All";
+            const targetList = targets[c.scope.toUpperCase()] || [];
+            // Handle mixing of string/int IDs
+            const targetName = targetList.find((t) => String(t.id) === String(c.target_id))?.name || "All";
 
             return (
               <tr key={c.id}>
                 <td className="td">
-                  <strong>{c.name || "Unnamed"}</strong>
-                  <br />
-                  <small style={{ color: "#666" }}>{typeCode}</small>
+                  <strong>{typeName}</strong>
                 </td>
 
                 <td className="td">
-                  {c.scope}: {targetName}
+                  <span style={{fontSize:'0.85rem', color:'#555', textTransform:'uppercase', fontWeight:'bold'}}>{c.scope}</span>
+                  <br/>
+                  {targetName}
                 </td>
 
-                <td className="td" style={{ fontSize: "0.8rem" }}>
-                  {c.valid_from} to <br /> {c.valid_to}
+                <td className="td" style={{ color: "#666" }}>
+                  {c.notes || "-"}
                 </td>
 
                 <td className="td">
-                  <span style={{ color: c.active ? "green" : "red", fontWeight: "bold" }}>
-                    {c.active ? "● True" : "○ False"}
+                  <span style={{ color: c.is_enabled ? "green" : "#ccc", fontWeight: "bold" }}>
+                    {c.is_enabled ? "Active" : "Inactive"}
                   </span>
                 </td>
 
@@ -261,8 +268,8 @@ export default function ConstraintOverview() {
                       borderRadius: "4px",
                       fontSize: "0.75rem",
                       fontWeight: "bold",
-                      background: c.hardness === "HARD" ? "#f8d7da" : "#d1e7dd",
-                      color: c.hardness === "HARD" ? "#721c24" : "#0f5132",
+                      background: c.hardness === "Hard" ? "#f8d7da" : "#d1e7dd",
+                      color: c.hardness === "Hard" ? "#721c24" : "#0f5132",
                     }}
                   >
                     {c.hardness}
@@ -288,47 +295,38 @@ export default function ConstraintOverview() {
           <div className="modalContent">
             <h3 style={{ marginTop: 0 }}>{editingId ? "Edit Constraint" : "Create Constraint"}</h3>
 
-            <div className="formGroup">
-              <label className="label">Constraint Name</label>
-              <input
+            <div style={{
+                background: "#f9f9f9",
+                padding: "15px",
+                borderRadius: "8px",
+                marginBottom: "20px",
+                border: "1px solid #eee",
+              }}>
+              <label className="label">Constraint Type</label>
+              <select
                 className="input"
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder="e.g., Mohammed NO Teaching on Fridays"
-              />
+                value={draft.constraint_type_id}
+                onChange={(e) => setDraft({ ...draft, constraint_type_id: e.target.value, config: {} })}
+              >
+                {types.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+
+              <div style={{ marginTop: "10px" }}>{renderParameters()}</div>
             </div>
 
             <div style={{ display: "flex", gap: "15px" }}>
               <div className="formGroup" style={{ flex: 1 }}>
-                <label className="label">Valid From (Date)</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={draft.valid_from}
-                  onChange={(e) => setDraft({ ...draft, valid_from: e.target.value })}
-                />
-              </div>
-
-              <div className="formGroup" style={{ flex: 1 }}>
-                <label className="label">Valid To (Date)</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={draft.valid_to}
-                  onChange={(e) => setDraft({ ...draft, valid_to: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: "15px" }}>
-              <div className="formGroup" style={{ flex: 1 }}>
-                <label className="label">Constraint Level</label>
+                <label className="label">Scope (Level)</label>
                 <select
                   className="input"
                   value={draft.scope}
                   onChange={(e) => setDraft({ ...draft, scope: e.target.value, target_id: 0 })}
                 >
-                  {["GLOBAL", "LECTURER", "GROUP", "MODULE", "ROOM"].map((s) => (
+                  {["Global", "Lecturer", "Group", "Module", "Room"].map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
@@ -337,7 +335,7 @@ export default function ConstraintOverview() {
               </div>
 
               <div className="formGroup" style={{ flex: 1 }}>
-                <label className="label">Constraint Target</label>
+                <label className="label">Target</label>
                 <select
                   className="input"
                   value={draft.target_id}
@@ -354,39 +352,14 @@ export default function ConstraintOverview() {
             </div>
 
             <div className="formGroup">
-              <label className="label">Constraint Rule (Logic Description)</label>
+              <label className="label">Description / Notes</label>
               <textarea
                 className="input"
                 style={{ height: "50px" }}
-                value={draft.constraint_rule}
-                onChange={(e) => setDraft({ ...draft, constraint_rule: e.target.value })}
-                placeholder="e.g., Mohammed is not available on Fridays for lectures"
+                value={draft.notes}
+                onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+                placeholder="e.g., Room A-101 is reserved for Chemistry on Mondays"
               />
-            </div>
-
-            <div
-              style={{
-                background: "#f9f9f9",
-                padding: "15px",
-                borderRadius: "8px",
-                marginBottom: "20px",
-                border: "1px solid #eee",
-              }}
-            >
-              <label className="label">Constraint Format & Type</label>
-              <select
-                className="input"
-                value={draft.constraint_type_id}
-                onChange={(e) => setDraft({ ...draft, constraint_type_id: e.target.value, config: {} })}
-              >
-                {types.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.code || t.name}
-                  </option>
-                ))}
-              </select>
-
-              <div style={{ marginTop: "10px" }}>{renderParameters()}</div>
             </div>
 
             <div
@@ -398,26 +371,26 @@ export default function ConstraintOverview() {
               }}
             >
               <div className="formGroup" style={{ marginBottom: 0 }}>
-                <label className="label">Priority (Hardness)</label>
+                <label className="label">Priority</label>
                 <select
                   className="input"
                   value={draft.hardness}
                   onChange={(e) => setDraft({ ...draft, hardness: e.target.value })}
                 >
-                  <option value="HARD">HARD (Must)</option>
-                  <option value="SOFT">SOFT (Prefer)</option>
+                  <option value="Hard">Hard (Must Follow)</option>
+                  <option value="Soft">Soft (Preference)</option>
                 </select>
               </div>
 
               <div className="formGroup" style={{ marginBottom: 0 }}>
-                <label className="label">Active Status (Boolean)</label>
-                <label style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <label className="label">Status</label>
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
                   <input
                     type="checkbox"
-                    checked={draft.active}
-                    onChange={(e) => setDraft({ ...draft, active: e.target.checked })}
+                    checked={draft.is_enabled}
+                    onChange={(e) => setDraft({ ...draft, is_enabled: e.target.checked })}
                   />
-                  {draft.active ? "Active" : "Inactive"}
+                  {draft.is_enabled ? "Enabled" : "Disabled"}
                 </label>
               </div>
             </div>
@@ -432,7 +405,7 @@ export default function ConstraintOverview() {
               </button>
 
               <button className="btn" onClick={save}>
-                {editingId ? "Update Constraint" : "Create Constraint"}
+                {editingId ? "Update Rule" : "Create Rule"}
               </button>
             </div>
           </div>
