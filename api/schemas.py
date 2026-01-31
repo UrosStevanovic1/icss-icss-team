@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import List, Optional, Any
 
 # --- AUTH ---
@@ -10,7 +10,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     role: str
-    lecturer_id: Optional[int] = None  # ✅ ADD THIS
+    lecturer_id: Optional[int] = None
 
 # --- LECTURERS ---
 class LecturerBase(BaseModel):
@@ -26,6 +26,23 @@ class LecturerBase(BaseModel):
 
 class LecturerCreate(LecturerBase):
     pass
+
+# Admin/PM full update (all optional)
+class LecturerUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    title: Optional[str] = None
+    employment_type: Optional[str] = None
+    personal_email: Optional[str] = None
+    mdh_email: Optional[str] = None
+    phone: Optional[str] = None
+    location: Optional[str] = None
+    teaching_load: Optional[str] = None
+
+# Lecturer self update (restricted)
+class LecturerSelfUpdate(BaseModel):
+    personal_email: Optional[str] = None
+    phone: Optional[str] = None
 
 class LecturerResponse(LecturerBase):
     id: int
@@ -47,11 +64,20 @@ class StudyProgramBase(BaseModel):
 class StudyProgramCreate(StudyProgramBase):
     pass
 
+class StudyProgramUpdate(BaseModel):
+    name: Optional[str] = None
+    acronym: Optional[str] = None
+    status: Optional[bool] = None
+    start_date: Optional[str] = None
+    total_ects: Optional[int] = None
+    location: Optional[str] = None
+    level: Optional[str] = None
+    degree_type: Optional[str] = None
+    head_of_program_id: Optional[int] = None  # PM/Admin only in backend
+
 class StudyProgramResponse(StudyProgramBase):
     id: int
-    # ✅ CRITICAL: This allows the API to send Title, Name, and Last Name to the frontend
     head_lecturer: Optional[LecturerResponse] = None
-
     class Config:
         from_attributes = True
 
@@ -62,6 +88,17 @@ class SpecializationBase(BaseModel):
     start_date: str
     program_id: Optional[int] = None
     status: bool = True
+    study_program: Optional[str] = None
+
+class SpecializationCreate(SpecializationBase):
+    pass
+
+class SpecializationUpdate(BaseModel):
+    name: Optional[str] = None
+    acronym: Optional[str] = None
+    start_date: Optional[str] = None
+    program_id: Optional[int] = None
+    status: Optional[bool] = None
     study_program: Optional[str] = None
 
 class SpecializationResponse(SpecializationBase):
@@ -83,6 +120,16 @@ class ModuleBase(BaseModel):
 class ModuleCreate(ModuleBase):
     specialization_ids: Optional[List[int]] = []
 
+class ModuleUpdate(BaseModel):
+    name: Optional[str] = None
+    ects: Optional[int] = None
+    room_type: Optional[str] = None
+    assessment_type: Optional[str] = None
+    semester: Optional[int] = None
+    category: Optional[str] = None
+    program_id: Optional[int] = None
+    specialization_ids: Optional[List[int]] = None
+
 class ModuleResponse(ModuleBase):
     specializations: List[SpecializationResponse] = []
     class Config:
@@ -92,6 +139,17 @@ class ModuleResponse(ModuleBase):
 class GroupBase(BaseModel):
     name: str
     size: int
+    description: Optional[str] = None
+    email: Optional[str] = None
+    program: Optional[str] = None
+    parent_group: Optional[str] = None
+
+class GroupCreate(GroupBase):
+    pass
+
+class GroupUpdate(BaseModel):
+    name: Optional[str] = None
+    size: Optional[int] = None
     description: Optional[str] = None
     email: Optional[str] = None
     program: Optional[str] = None
@@ -108,6 +166,17 @@ class RoomBase(BaseModel):
     capacity: int
     type: str
     status: bool = True
+    equipment: Optional[str] = None
+    location: Optional[str] = None
+
+class RoomCreate(RoomBase):
+    pass
+
+class RoomUpdate(BaseModel):
+    name: Optional[str] = None
+    capacity: Optional[int] = None
+    type: Optional[str] = None
+    status: Optional[bool] = None
     equipment: Optional[str] = None
     location: Optional[str] = None
 
@@ -128,13 +197,21 @@ class AvailabilityResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# --- CONSTRAINTS ---
+# --- CONSTRAINT TYPES ---
 class ConstraintTypeResponse(BaseModel):
     id: int
     name: str
+    active: bool = True
+    constraint_level: Optional[str] = None
+    constraint_format: Optional[str] = None
+    valid_from: Optional[Any] = None
+    valid_to: Optional[Any] = None
+    constraint_rule: Optional[str] = None
+    constraint_target: Optional[str] = None
     class Config:
         from_attributes = True
 
+# --- SCHEDULER CONSTRAINTS ---
 class SchedulerConstraintBase(BaseModel):
     constraint_type_id: int
     hardness: str
@@ -143,6 +220,19 @@ class SchedulerConstraintBase(BaseModel):
     target_id: Optional[int] = None
     config: Any = {}
     is_enabled: bool = True
+    notes: Optional[str] = None
+
+class SchedulerConstraintCreate(SchedulerConstraintBase):
+    pass
+
+class SchedulerConstraintUpdate(BaseModel):
+    constraint_type_id: Optional[int] = None
+    hardness: Optional[str] = None
+    weight: Optional[int] = None
+    scope: Optional[str] = None
+    target_id: Optional[int] = None
+    config: Optional[Any] = None
+    is_enabled: Optional[bool] = None
     notes: Optional[str] = None
 
 class SchedulerConstraintResponse(SchedulerConstraintBase):
