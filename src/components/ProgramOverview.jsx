@@ -7,11 +7,8 @@ const styles = {
 
   // Controls Header
   controlsBar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", gap: "15px", flexWrap: "wrap" },
-
-  // Left Side Controls (Search + Toggle)
   leftControls: { display: "flex", gap: "15px", alignItems: "center", flex: 1 },
 
-  // Search Input
   searchBar: {
     padding: "10px 15px",
     borderRadius: "8px",
@@ -24,34 +21,43 @@ const styles = {
     outline: "none"
   },
 
-  // Toggle Switch
+  // Toggle
   toggleContainer: { display: "flex", background: "#e2e8f0", padding: "4px", borderRadius: "8px" },
   toggleBtn: { padding: "6px 16px", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9rem", fontWeight: "600", color: "#64748b", background: "transparent", transition: "all 0.2s" },
   toggleBtnActive: { background: "white", color: "#3b82f6", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" },
 
-  // LIST LAYOUT (The new wide look)
-  listContainer: { display: "flex", flexDirection: "column", gap: "10px" },
+  // LIST LAYOUT (Grid-based for perfect alignment)
+  listContainer: { display: "flex", flexDirection: "column", gap: "12px" },
+
   listCard: {
     background: "white",
-    borderRadius: "10px",
-    padding: "15px 25px",
+    borderRadius: "8px",
     border: "1px solid #e2e8f0",
     cursor: "pointer",
-    transition: "all 0.2s",
-    display: "flex",
+    transition: "background-color 0.2s ease", // Only animate background color
+    // Grid layout: Status (Fixed) | Name (Flexible) | Metadata (Auto)
+    display: "grid",
+    gridTemplateColumns: "80px 1fr auto",
     alignItems: "center",
-    justifyContent: "space-between",
+    padding: "16px 20px",
+    gap: "20px",
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
   },
-  listCardHover: { transform: "translateX(4px)", borderColor: "#3b82f6", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" },
 
-  // Internal Card Layout
-  cardLeft: { display: "flex", alignItems: "center", gap: "20px", flex: 2 },
-  cardMeta: { display: "flex", alignItems: "center", gap: "30px", flex: 3, justifyContent: "flex-end", color: "#64748b", fontSize: "0.9rem" },
+  // Hover State: Just slightly darker, no movement or glow
+  listCardHover: {
+    backgroundColor: "#f8fafc",
+    borderColor: "#cbd5e1"
+  },
 
   // Typography
-  progTitle: { margin: 0, fontSize: "1.1rem", fontWeight: "700", color: "#1e293b" },
+  progTitle: { margin: 0, fontSize: "1.05rem", fontWeight: "700", color: "#1e293b", lineHeight: "1.3" },
   progSubtitle: { margin: 0, fontSize: "0.85rem", color: "#64748b", fontWeight: "500" },
+
+  // Metadata Section (Right Side)
+  metaContainer: { display: "flex", alignItems: "center", gap: "20px", fontSize: "0.9rem", color: "#475569" },
+  metaItem: { display: "flex", alignItems: "center", gap: "6px" },
+  separator: { color: "#cbd5e1" },
 
   // Tabs
   tabContainer: { display: "flex", gap: "20px", marginBottom: "20px", borderBottom: "2px solid #e2e8f0" },
@@ -67,16 +73,16 @@ const styles = {
   select: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", marginBottom: "15px", background: "white" },
 
   // Badges
-  badge: { padding: "4px 10px", borderRadius: "99px", fontSize: "0.75rem", fontWeight: "bold", textTransform: "uppercase", display: "inline-block", minWidth: "60px", textAlign: "center" },
+  badge: { padding: "4px 0", borderRadius: "6px", fontSize: "0.75rem", fontWeight: "bold", textTransform: "uppercase", display: "block", width: "100%", textAlign: "center" },
   statusActive: { background: "#dcfce7", color: "#166534" },
   statusInactive: { background: "#f1f5f9", color: "#94a3b8" },
+  ectsBadge: { fontWeight:'bold', color:'#333', background:'#f1f5f9', padding:'6px 12px', borderRadius:'6px' },
 
   // Modal
   overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
   modal: { background: "white", padding: "30px", borderRadius: "12px", width: "500px", maxWidth: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }
 };
 
-// Helper: Date Formatter
 const formatDate = (isoDate) => {
   if (!isoDate) return "-";
   return new Date(isoDate).toLocaleDateString("de-DE");
@@ -87,8 +93,6 @@ export default function ProgramOverview() {
   const [selectedProgram, setSelectedProgram] = useState(null);
   const [programs, setPrograms] = useState([]);
   const [lecturers, setLecturers] = useState([]);
-
-  // Nested Data for Detail View
   const [specializations, setSpecializations] = useState([]);
   const [modules, setModules] = useState([]);
 
@@ -146,14 +150,13 @@ export default function ProgramOverview() {
   );
 }
 
-// --- VIEW: LIST (Wide Rows) ---
+// --- VIEW: LIST (Wide Rows with Grid) ---
 function ProgramList({ programs, lecturers, onSelect, refresh }) {
   const [showCreate, setShowCreate] = useState(false);
   const [levelFilter, setLevelFilter] = useState("Bachelor");
   const [searchQuery, setSearchQuery] = useState("");
   const [hoverId, setHoverId] = useState(null);
 
-  // Draft for New Program
   const [newProg, setNewProg] = useState({
       name: "", acronym: "", head_of_program: "",
       total_ects: 180, level: "Bachelor", status: true,
@@ -169,7 +172,6 @@ function ProgramList({ programs, lecturers, onSelect, refresh }) {
     } catch(e) { alert("Failed to create program."); }
   };
 
-  // Filter Logic: Level AND Search
   const filtered = programs.filter(p => {
       const matchesLevel = p.level === levelFilter;
       const q = searchQuery.toLowerCase();
@@ -177,7 +179,6 @@ function ProgramList({ programs, lecturers, onSelect, refresh }) {
           p.name.toLowerCase().includes(q) ||
           p.acronym.toLowerCase().includes(q) ||
           (p.location && p.location.toLowerCase().includes(q));
-
       return matchesLevel && matchesSearch;
   });
 
@@ -185,21 +186,17 @@ function ProgramList({ programs, lecturers, onSelect, refresh }) {
     <div>
       <div style={styles.controlsBar}>
         <div style={styles.leftControls}>
-            {/* Toggle */}
             <div style={styles.toggleContainer}>
             <button style={{ ...styles.toggleBtn, ...(levelFilter === "Bachelor" ? styles.toggleBtnActive : {}) }} onClick={() => setLevelFilter("Bachelor")}>Bachelor</button>
             <button style={{ ...styles.toggleBtn, ...(levelFilter === "Master" ? styles.toggleBtnActive : {}) }} onClick={() => setLevelFilter("Master")}>Master</button>
             </div>
-
-            {/* Search Bar */}
             <input
                 style={styles.searchBar}
-                placeholder="🔍 Search programs..."
+                placeholder="Search programs..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
             />
         </div>
-
         <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={() => setShowCreate(true)}>+ New Program</button>
       </div>
 
@@ -212,33 +209,30 @@ function ProgramList({ programs, lecturers, onSelect, refresh }) {
             onMouseEnter={() => setHoverId(p.id)}
             onMouseLeave={() => setHoverId(null)}
           >
-            {/* Left: Status & Identity */}
-            <div style={styles.cardLeft}>
+            {/* 1. Status Column */}
+            <div>
                 <span style={{ ...styles.badge, ...(p.status ? styles.statusActive : styles.statusInactive) }}>
                     {p.status ? "Active" : "Inactive"}
                 </span>
-                <div>
-                    <h4 style={styles.progTitle}>{p.name}</h4>
-                    <span style={styles.progSubtitle}>{p.acronym}</span>
-                </div>
             </div>
 
-            {/* Right: Meta Information */}
-            <div style={styles.cardMeta}>
+            {/* 2. Name Column */}
+            <div style={{minWidth: 0}}>
+                <h4 style={styles.progTitle}>{p.name}</h4>
+                <span style={styles.progSubtitle}>{p.acronym}</span>
+            </div>
+
+            {/* 3. Metadata Column */}
+            <div style={styles.metaContainer}>
                 {p.location && (
-                    <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
-                        <span>📍</span> {p.location}
-                    </div>
+                    <div style={styles.metaItem}>Loc: {p.location}</div>
                 )}
-                <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
-                    <span>👤</span> {p.head_of_program || "N/A"}
-                </div>
-                <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
-                    <span>📅</span> {formatDate(p.start_date)}
-                </div>
-                <div style={{fontWeight:'bold', color:'#333', background:'#f1f5f9', padding:'4px 8px', borderRadius:'6px'}}>
-                    {p.total_ects} ECTS
-                </div>
+                <span style={styles.separator}>|</span>
+                <div style={styles.metaItem}>Head: {p.head_of_program || "-"}</div>
+                <span style={styles.separator}>|</span>
+                <div style={styles.metaItem}>Start: {formatDate(p.start_date)}</div>
+
+                <div style={styles.ectsBadge}>{p.total_ects} ECTS</div>
             </div>
           </div>
         ))}
@@ -328,7 +322,6 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
       </div>
 
       <div style={{ background: "white", padding: "30px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-
         {activeTab === "INFO" && (
           <div>
              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
@@ -367,7 +360,7 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
                             {editDraft.status ? "Active" : "Inactive"}
                         </label>
                     ) : (
-                        <span style={{ ...styles.badge, ...(program.status ? styles.statusActive : styles.statusInactive) }}>
+                        <span style={{ ...styles.badge, ...(program.status ? styles.statusActive : styles.statusInactive), width: 'auto', display: 'inline-block', padding: '4px 12px' }}>
                             {program.status ? "Active" : "Inactive"}
                         </span>
                     )}
@@ -390,11 +383,10 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
                         <div style={{ color: "#64748b" }}>Semester {m.semester} • {m.ects} ECTS</div>
                     </div>
                 ))}
-                {modules.length === 0 && <div style={{ color: "#94a3b8" }}>No modules linked. Go to "Modules" to assign them.</div>}
+                {modules.length === 0 && <div style={{ color: "#94a3b8" }}>No modules linked.</div>}
             </div>
           </div>
         )}
-
       </div>
 
       {showDeleteModal && (
@@ -464,7 +456,7 @@ function SpecializationsManager({ programId, specializations, refresh }) {
             <div style={{background:'#f8fafc', padding:'15px', borderRadius:'8px', marginBottom:'20px', display:'flex', gap:'10px', alignItems:'flex-end'}}>
                 <div style={{flex:2}}>
                     <label style={{fontSize:'0.8rem', fontWeight:'bold'}}>Name</label>
-                    <input style={{...styles.input, marginBottom:0}} value={newSpec.name} onChange={e => setNewSpec({...newSpec, name: e.target.value})} placeholder="e.g. Artificial Intelligence" />
+                    <input style={{...styles.input, marginBottom:0}} value={newSpec.name} onChange={e => setNewSpec({...newSpec, name: e.target.value})} placeholder="e.g. AI" />
                 </div>
                 <div style={{flex:1}}>
                     <label style={{fontSize:'0.8rem', fontWeight:'bold'}}>Acronym</label>
@@ -515,7 +507,7 @@ function SpecializationsManager({ programId, specializations, refresh }) {
                                             <option value="false">Inactive</option>
                                         </select>
                                     ) : (
-                                        <span style={{ ...styles.badge, ...(s.status ? styles.statusActive : styles.statusInactive) }}>{s.status ? "Active" : "Inactive"}</span>
+                                        <span style={{ ...styles.badge, ...(s.status ? styles.statusActive : styles.statusInactive), width:'auto', padding:'4px 8px' }}>{s.status ? "Active" : "Inactive"}</span>
                                     )}
                                 </td>
                                 <td style={{ padding: "12px 10px", textAlign: "right" }}>
