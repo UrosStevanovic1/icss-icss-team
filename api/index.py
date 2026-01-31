@@ -141,7 +141,7 @@ def delete_program(id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-# --- SPECIALIZATIONS ---
+# --- SPECIALIZATIONS (FIXED) ---
 @app.get("/specializations/", response_model=List[schemas.SpecializationResponse])
 def read_specs(db: Session = Depends(get_db)):
     return db.query(models.Specialization).all()
@@ -149,19 +149,34 @@ def read_specs(db: Session = Depends(get_db)):
 
 @app.post("/specializations/", response_model=schemas.SpecializationResponse)
 def create_spec(s: schemas.SpecializationCreate, db: Session = Depends(get_db)):
-    row = models.Specialization(**s.model_dump())
-    db.add(row);
-    db.commit();
+    # 1. Prepare data
+    spec_data = s.model_dump()
+
+    # 2. ✅ FIX: Fetch the program name and fill 'study_program'
+    program = db.query(models.StudyProgram).filter(models.StudyProgram.id == s.program_id).first()
+    if program:
+        spec_data["study_program"] = program.name
+
+    # 3. Create and Save
+    row = models.Specialization(**spec_data)
+    db.add(row)
+    db.commit()
     db.refresh(row)
     return row
 
 
-# ✅ FIX: Added PUT endpoint for updating specializations
 @app.put("/specializations/{id}", response_model=schemas.SpecializationResponse)
 def update_spec(id: int, s: schemas.SpecializationCreate, db: Session = Depends(get_db)):
     row = db.query(models.Specialization).filter(models.Specialization.id == id).first()
     if not row: raise HTTPException(404)
+
+    # Update fields
     for k, v in s.model_dump().items(): setattr(row, k, v)
+
+    program = db.query(models.StudyProgram).filter(models.StudyProgram.id == s.program_id).first()
+    if program:
+        row.study_program = program.name
+
     db.commit();
     db.refresh(row)
     return row
