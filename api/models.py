@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from .database import Base
 
-# Association Table for Many-to-Many (Modules <-> Specializations)
+# Association Table
 module_specializations = Table(
     "module_specializations",
     Base.metadata,
@@ -18,13 +18,13 @@ class StudyProgram(Base):
     name = Column(String, nullable=False)
     acronym = Column(String, nullable=False)
     head_of_program = Column(String, nullable=False)
+    # ✅ MATCHES SQL: "status" boolean
     status = Column(Boolean, default=True)
     start_date = Column(String, nullable=False)
     total_ects = Column(Integer, nullable=False)
     location = Column(String, nullable=True)
     level = Column(String, nullable=False, server_default="Bachelor")
 
-    # Relationships
     specializations = relationship("Specialization", back_populates="program", cascade="all, delete-orphan")
     modules = relationship("Module", back_populates="program")
 
@@ -52,8 +52,6 @@ class Module(Base):
     assessment_type = Column(String, nullable=True)
     semester = Column(Integer, nullable=False)
     category = Column(String, nullable=True)
-
-    # Linking to Study Program
     program_id = Column(Integer, ForeignKey("study_programs.id"), nullable=True)
 
     program = relationship("StudyProgram", back_populates="modules")
@@ -62,7 +60,6 @@ class Module(Base):
 
 class Lecturer(Base):
     __tablename__ = "lecturers"
-    # ✅ FIX: Map to uppercase "ID" from database
     id = Column("ID", Integer, primary_key=True, index=True)
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=True)
@@ -78,7 +75,6 @@ class Lecturer(Base):
 class LecturerAvailability(Base):
     __tablename__ = "lecturer_availabilities"
     id = Column(Integer, primary_key=True, index=True)
-    # Refers to "lecturers.ID" because of the mapping above
     lecturer_id = Column(Integer, ForeignKey("lecturers.ID"), unique=True, nullable=False)
     schedule_data = Column(JSONB, nullable=False, server_default='{}')
 
@@ -86,7 +82,6 @@ class LecturerAvailability(Base):
 class Group(Base):
     __tablename__ = "groups"
     id = Column(Integer, primary_key=True, index=True)
-    # ✅ FIX: Map to capitalized column names
     name = Column("Name", String, nullable=False)
     size = Column("Size", Integer, nullable=False)
     description = Column("Brief description", String, nullable=True)
@@ -102,7 +97,6 @@ class Room(Base):
     capacity = Column(Integer, nullable=False)
     type = Column(String, nullable=False)
     status = Column(Boolean, nullable=False)
-    # ✅ FIX: Map to "Equipment"
     equipment = Column("Equipment", String, nullable=True)
     location = Column(String, nullable=True)
 
@@ -111,7 +105,6 @@ class ConstraintType(Base):
     __tablename__ = "constraint_types"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
-    # Note: Using "active" here. If DB has "is_active", change first arg to "is_active"
     active = Column(Boolean, nullable=False, default=True)
     constraint_level = Column(String, nullable=True)
     constraint_format = Column(String, nullable=True)

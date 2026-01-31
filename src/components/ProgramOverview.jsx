@@ -26,7 +26,6 @@ const styles = {
   // Buttons & Inputs
   btn: { padding: "8px 16px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.9rem", fontWeight: "500", transition: "0.2s" },
   primaryBtn: { background: "#3b82f6", color: "white" },
-  iconBtn: { background: "transparent", border: "none", cursor: "pointer", fontSize: "1.1rem" },
   input: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", marginBottom: "15px" },
 
   // Badges
@@ -49,6 +48,7 @@ export default function ProgramOverview() {
   useEffect(() => { loadPrograms(); }, []);
 
   const loadPrograms = () => {
+    // API returns array directly
     api.getPrograms().then(res => setPrograms(res || []));
   };
 
@@ -111,7 +111,7 @@ function ProgramList({ programs, onSelect, refresh }) {
 
   return (
     <div>
-      {/* Controls Header (No Duplicate Title) */}
+      {/* Controls Header */}
       <div style={styles.controlsBar}>
         {/* Level Toggle */}
         <div style={styles.toggleContainer}>
@@ -200,7 +200,6 @@ function ProgramWorkspace({ program, specializations, modules, onBack, refreshSp
         <button style={{ background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: "1rem", fontWeight: "600" }} onClick={onBack}>
           ← Back
         </button>
-        {/* Delete Button moved to corner */}
         <button
           onClick={() => setShowDeleteModal(true)}
           style={{ background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontWeight: "600", fontSize: "0.85rem" }}
