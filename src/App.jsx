@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import "./App.css";
-import Layout from "./Layout"; // Same folder
+import Layout from "./Layout"; // Same folder (src/)
 
 // Import components from the components folder
 import ProgramOverview from "./components/ProgramOverview";
