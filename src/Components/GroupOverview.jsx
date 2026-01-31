@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import api from "./api";
+import api from "../api";
 
 // --- CONSISTENT STYLES ---
 const styles = {

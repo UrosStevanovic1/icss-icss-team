@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import api from "./api";
+import api from "../api";
 
 const styles = {
   container: { padding: "20px", fontFamily: "'Segoe UI', sans-serif", color: "#333", maxWidth: "100%" },
