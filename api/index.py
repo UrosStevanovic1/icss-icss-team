@@ -31,6 +31,51 @@ app.add_middleware(
 def root(): return {"message": "Backend Online"}
 
 
+# --- 🛠️ SEED ENDPOINT (Create Test Users) ---
+# Visit /api/seed in your browser ONCE to create the test users
+@app.get("/seed")
+def seed_users(db: Session = Depends(get_db)):
+    created = []
+
+    # 1. Create PM/Admin
+    if not db.query(models.User).filter(models.User.email == "pm@icss.com").first():
+        hashed = auth.get_password_hash("password")
+        db.add(models.User(email="pm@icss.com", password_hash=hashed, role="pm"))
+        created.append("PM User Created (pm@icss.com / password)")
+
+    # 2. Create Dummy Lecturer Profile (Required for HoSP/Lecturer Users)
+    lecturer = db.query(models.Lecturer).first()
+    if not lecturer:
+        lecturer = models.Lecturer(first_name="Prof", last_name="Test", title="Dr.", employment_type="Full time",
+                                   mdh_email="prof@test.com")
+        db.add(lecturer)
+        db.commit()
+        db.refresh(lecturer)
+        created.append("Dummy Lecturer Profile Created")
+
+    # 3. Create HoSP User (Linked to Lecturer)
+    if not db.query(models.User).filter(models.User.email == "hosp@icss.com").first():
+        hashed = auth.get_password_hash("password")
+        # Link to the lecturer profile so HoSP logic works
+        db.add(models.User(email="hosp@icss.com", password_hash=hashed, role="hosp", lecturer_id=lecturer.id))
+        created.append("HoSP User Created (hosp@icss.com / password)")
+
+    # 4. Create Lecturer User (Linked to same Lecturer for testing)
+    if not db.query(models.User).filter(models.User.email == "lecturer@icss.com").first():
+        hashed = auth.get_password_hash("password")
+        db.add(models.User(email="lecturer@icss.com", password_hash=hashed, role="lecturer", lecturer_id=lecturer.id))
+        created.append("Lecturer User Created (lecturer@icss.com / password)")
+
+    # 5. Create Student User
+    if not db.query(models.User).filter(models.User.email == "student@icss.com").first():
+        hashed = auth.get_password_hash("password")
+        db.add(models.User(email="student@icss.com", password_hash=hashed, role="student"))
+        created.append("Student User Created (student@icss.com / password)")
+
+    db.commit()
+    return {"status": "Seeding Complete", "created": created}
+
+
 # --- HELPER: Permission Checks ---
 def check_admin_or_pm(user: models.User):
     if user.role not in ["admin", "pm"]:

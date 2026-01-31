@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./App.css";
 import Layout from "./Layout";
 
@@ -14,8 +14,9 @@ import AvailabilityOverview from "./components/AvailabilityOverview";
 function App() {
   const [activeTab, setActiveTab] = useState("programs");
 
-  // ✅ NEW: Global Role State for Testing (Passed to Layout)
-  const [currentUserRole, setCurrentUserRole] = useState("Admin");
+  // Initialize state from localStorage to persist between reloads
+  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [currentUserRole, setCurrentUserRole] = useState(localStorage.getItem("userRole") || "Guest");
 
   const [navData, setNavData] = useState(null);
 
@@ -24,24 +25,38 @@ function App() {
     setNavData(data);
   };
 
+  // If no token is present, we show a "Welcome" screen instead of the data components.
+  // This prevents the 401 -> Reload loop.
   const renderContent = () => {
+    if (!token) {
+      return (
+        <div style={{textAlign: "center", marginTop: "100px", color: "#64748b"}}>
+          <h2>Welcome to ICSS Scheduler</h2>
+          <p>Please select a Role in the bottom-left corner to start testing.</p>
+        </div>
+      );
+    }
+
+    // Pass role to all components
+    const commonProps = { currentUserRole, onNavigate: handleNavigate };
+
     switch (activeTab) {
       case "programs":
-        return <ProgramOverview initialData={navData} clearInitialData={() => setNavData(null)} currentUserRole={currentUserRole} />;
+        return <ProgramOverview initialData={navData} clearInitialData={() => setNavData(null)} {...commonProps} />;
       case "modules":
-        return <ModuleOverview onNavigate={handleNavigate} currentUserRole={currentUserRole} />;
+        return <ModuleOverview {...commonProps} />;
       case "lecturers":
-        return <LecturerOverview currentUserRole={currentUserRole} />;
+        return <LecturerOverview {...commonProps} />;
       case "rooms":
-        return <RoomOverview currentUserRole={currentUserRole} />;
+        return <RoomOverview {...commonProps} />;
       case "groups":
-        return <GroupOverview currentUserRole={currentUserRole} />;
+        return <GroupOverview {...commonProps} />;
       case "constraints":
-        return <ConstraintOverview currentUserRole={currentUserRole} />;
+        return <ConstraintOverview {...commonProps} />;
       case "availabilities":
-        return <AvailabilityOverview currentUserRole={currentUserRole} />;
+        return <AvailabilityOverview {...commonProps} />;
       default:
-        return <ProgramOverview />;
+        return <ProgramOverview {...commonProps} />;
     }
   };
 
