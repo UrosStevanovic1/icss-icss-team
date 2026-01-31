@@ -560,7 +560,7 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
         {activeTab === "MODULES" && (
           <div>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
-                <h3 style={{margin:0}}>Curriculum Structure</h3>
+                <h3 style={{margin:0}}>Modules</h3>
                 {canEdit && (
                     <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openModuleAdd}>+ New Module</button>
                 )}
