@@ -3,18 +3,55 @@ import api from "../api";
 
 // --- STYLES ---
 const styles = {
-  container: { padding: "20px", fontFamily: "'Inter', sans-serif", color: "#333", maxWidth: "100%" },
+  container: { padding: "20px", fontFamily: "'Inter', sans-serif", color: "#333", maxWidth: "1200px", margin: "0 auto" },
 
-  // Controls
-  controlsBar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px", paddingBottom: "15px", borderBottom: "1px solid #e2e8f0" },
+  // Controls Header
+  controlsBar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", gap: "15px", flexWrap: "wrap" },
+
+  // Left Side Controls (Search + Toggle)
+  leftControls: { display: "flex", gap: "15px", alignItems: "center", flex: 1 },
+
+  // Search Input
+  searchBar: {
+    padding: "10px 15px",
+    borderRadius: "8px",
+    border: "1px solid #cbd5e1",
+    fontSize: "0.95rem",
+    width: "100%",
+    maxWidth: "350px",
+    background: "white",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+    outline: "none"
+  },
+
+  // Toggle Switch
   toggleContainer: { display: "flex", background: "#e2e8f0", padding: "4px", borderRadius: "8px" },
   toggleBtn: { padding: "6px 16px", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9rem", fontWeight: "600", color: "#64748b", background: "transparent", transition: "all 0.2s" },
   toggleBtnActive: { background: "white", color: "#3b82f6", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" },
 
-  // Cards
-  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "20px" },
-  card: { background: "white", borderRadius: "12px", padding: "24px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", border: "1px solid #e2e8f0", cursor: "pointer", transition: "transform 0.2s, box-shadow 0.2s" },
-  cardHover: { transform: "translateY(-2px)", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)" },
+  // LIST LAYOUT (The new wide look)
+  listContainer: { display: "flex", flexDirection: "column", gap: "10px" },
+  listCard: {
+    background: "white",
+    borderRadius: "10px",
+    padding: "15px 25px",
+    border: "1px solid #e2e8f0",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+  },
+  listCardHover: { transform: "translateX(4px)", borderColor: "#3b82f6", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" },
+
+  // Internal Card Layout
+  cardLeft: { display: "flex", alignItems: "center", gap: "20px", flex: 2 },
+  cardMeta: { display: "flex", alignItems: "center", gap: "30px", flex: 3, justifyContent: "flex-end", color: "#64748b", fontSize: "0.9rem" },
+
+  // Typography
+  progTitle: { margin: 0, fontSize: "1.1rem", fontWeight: "700", color: "#1e293b" },
+  progSubtitle: { margin: 0, fontSize: "0.85rem", color: "#64748b", fontWeight: "500" },
 
   // Tabs
   tabContainer: { display: "flex", gap: "20px", marginBottom: "20px", borderBottom: "2px solid #e2e8f0" },
@@ -30,9 +67,9 @@ const styles = {
   select: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", marginBottom: "15px", background: "white" },
 
   // Badges
-  badge: { padding: "4px 8px", borderRadius: "99px", fontSize: "0.75rem", fontWeight: "bold", textTransform: "uppercase", display: "inline-block" },
+  badge: { padding: "4px 10px", borderRadius: "99px", fontSize: "0.75rem", fontWeight: "bold", textTransform: "uppercase", display: "inline-block", minWidth: "60px", textAlign: "center" },
   statusActive: { background: "#dcfce7", color: "#166534" },
-  statusInactive: { background: "#f1f5f9", color: "#64748b" },
+  statusInactive: { background: "#f1f5f9", color: "#94a3b8" },
 
   // Modal
   overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
@@ -109,10 +146,12 @@ export default function ProgramOverview() {
   );
 }
 
-// --- VIEW: LIST (Cards) ---
+// --- VIEW: LIST (Wide Rows) ---
 function ProgramList({ programs, lecturers, onSelect, refresh }) {
   const [showCreate, setShowCreate] = useState(false);
   const [levelFilter, setLevelFilter] = useState("Bachelor");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [hoverId, setHoverId] = useState(null);
 
   // Draft for New Program
   const [newProg, setNewProg] = useState({
@@ -130,38 +169,80 @@ function ProgramList({ programs, lecturers, onSelect, refresh }) {
     } catch(e) { alert("Failed to create program."); }
   };
 
-  const filtered = programs.filter(p => p.level === levelFilter);
+  // Filter Logic: Level AND Search
+  const filtered = programs.filter(p => {
+      const matchesLevel = p.level === levelFilter;
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+          p.name.toLowerCase().includes(q) ||
+          p.acronym.toLowerCase().includes(q) ||
+          (p.location && p.location.toLowerCase().includes(q));
+
+      return matchesLevel && matchesSearch;
+  });
 
   return (
     <div>
       <div style={styles.controlsBar}>
-        <div style={styles.toggleContainer}>
-          <button style={{ ...styles.toggleBtn, ...(levelFilter === "Bachelor" ? styles.toggleBtnActive : {}) }} onClick={() => setLevelFilter("Bachelor")}>Bachelor</button>
-          <button style={{ ...styles.toggleBtn, ...(levelFilter === "Master" ? styles.toggleBtnActive : {}) }} onClick={() => setLevelFilter("Master")}>Master</button>
+        <div style={styles.leftControls}>
+            {/* Toggle */}
+            <div style={styles.toggleContainer}>
+            <button style={{ ...styles.toggleBtn, ...(levelFilter === "Bachelor" ? styles.toggleBtnActive : {}) }} onClick={() => setLevelFilter("Bachelor")}>Bachelor</button>
+            <button style={{ ...styles.toggleBtn, ...(levelFilter === "Master" ? styles.toggleBtnActive : {}) }} onClick={() => setLevelFilter("Master")}>Master</button>
+            </div>
+
+            {/* Search Bar */}
+            <input
+                style={styles.searchBar}
+                placeholder="🔍 Search programs..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+            />
         </div>
+
         <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={() => setShowCreate(true)}>+ New Program</button>
       </div>
 
-      <div style={styles.grid}>
+      <div style={styles.listContainer}>
         {filtered.map(p => (
           <div
             key={p.id}
-            style={styles.card}
+            style={{ ...styles.listCard, ...(hoverId === p.id ? styles.listCardHover : {}) }}
             onClick={() => onSelect(p)}
-            onMouseEnter={e => { e.currentTarget.style.transform = styles.cardHover.transform; e.currentTarget.style.boxShadow = styles.cardHover.boxShadow; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = styles.card.boxShadow; }}
+            onMouseEnter={() => setHoverId(p.id)}
+            onMouseLeave={() => setHoverId(null)}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-              <span style={{ ...styles.badge, ...(p.status ? styles.statusActive : styles.statusInactive) }}>
-                {p.status ? "Active" : "Inactive"}
-              </span>
-              <span style={{ color: "#94a3b8", fontSize: "0.85rem", fontWeight: "600" }}>{p.total_ects} ECTS</span>
+            {/* Left: Status & Identity */}
+            <div style={styles.cardLeft}>
+                <span style={{ ...styles.badge, ...(p.status ? styles.statusActive : styles.statusInactive) }}>
+                    {p.status ? "Active" : "Inactive"}
+                </span>
+                <div>
+                    <h4 style={styles.progTitle}>{p.name}</h4>
+                    <span style={styles.progSubtitle}>{p.acronym}</span>
+                </div>
             </div>
-            <h3 style={{ margin: "0 0 5px 0", color: "#1e293b" }}>{p.name}</h3>
-            <p style={{ margin: 0, color: "#64748b" }}>{p.acronym} • {p.location || "No Location"} • {formatDate(p.start_date)}</p>
+
+            {/* Right: Meta Information */}
+            <div style={styles.cardMeta}>
+                {p.location && (
+                    <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
+                        <span>📍</span> {p.location}
+                    </div>
+                )}
+                <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
+                    <span>👤</span> {p.head_of_program || "N/A"}
+                </div>
+                <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
+                    <span>📅</span> {formatDate(p.start_date)}
+                </div>
+                <div style={{fontWeight:'bold', color:'#333', background:'#f1f5f9', padding:'4px 8px', borderRadius:'6px'}}>
+                    {p.total_ects} ECTS
+                </div>
+            </div>
           </div>
         ))}
-        {filtered.length === 0 && <div style={{ color: "#94a3b8" }}>No programs found.</div>}
+        {filtered.length === 0 && <div style={{ color: "#94a3b8", padding: "20px", textAlign: "center", fontStyle: "italic" }}>No programs found matching your search.</div>}
       </div>
 
       {/* CREATE MODAL */}
@@ -226,7 +307,6 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <button style={{ ...styles.btn, background:"transparent", color:"#64748b", padding:0 }} onClick={onBack}>← Back to List</button>
-        {/* ✅ FIX: Button now triggers the modal, not the immediate delete */}
         <button style={{ ...styles.btn, ...styles.dangerBtn }} onClick={() => setShowDeleteModal(true)}>Delete Program</button>
       </div>
 
@@ -317,14 +397,13 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
 
       </div>
 
-      {/* ✅ FIX: Security Modal correctly implemented here */}
       {showDeleteModal && (
         <DeleteConfirmationModal
             onClose={() => setShowDeleteModal(false)}
             onConfirm={() => {
                 api.deleteProgram(program.id).then(() => {
                     setShowDeleteModal(false);
-                    onBack(); // Go back to list after delete
+                    onBack();
                 }).catch(err => alert("Error deleting program."));
             }}
         />
@@ -333,7 +412,6 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
   );
 }
 
-// --- HELPER: Field Display ---
 const FieldDisplay = ({ label, value, onChange, isEditing, type = "text" }) => (
     <div>
         <label style={{ display: "block", color: "#64748b", fontSize: "0.85rem", marginBottom: "5px" }}>{label}</label>
@@ -350,7 +428,6 @@ const FieldDisplay = ({ label, value, onChange, isEditing, type = "text" }) => (
     </div>
 );
 
-// --- HELPER: Specializations Manager ---
 function SpecializationsManager({ programId, specializations, refresh }) {
     const [newSpec, setNewSpec] = useState({ name: "", acronym: "", start_date: "", status: true });
     const [editingSpecId, setEditingSpecId] = useState(null);
@@ -384,7 +461,6 @@ function SpecializationsManager({ programId, specializations, refresh }) {
 
     return (
         <div>
-            {/* Add New Row */}
             <div style={{background:'#f8fafc', padding:'15px', borderRadius:'8px', marginBottom:'20px', display:'flex', gap:'10px', alignItems:'flex-end'}}>
                 <div style={{flex:2}}>
                     <label style={{fontSize:'0.8rem', fontWeight:'bold'}}>Name</label>
@@ -465,7 +541,6 @@ function SpecializationsManager({ programId, specializations, refresh }) {
     );
 }
 
-// --- HELPER: Delete Confirmation Modal ---
 function DeleteConfirmationModal({ onClose, onConfirm }) {
     const [input, setInput] = useState("");
     const isMatch = input === "DELETE";
