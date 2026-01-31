@@ -10,43 +10,6 @@ from . import schemas
 from . import auth
 from .database import engine, get_db
 
-
-# --- 🛠️ AUTO-MIGRATION SCRIPT ---
-def run_migrations():
-    with engine.connect() as connection:
-        connection.commit()
-        try:
-            # 1. Add 'degree_type'
-            connection.execute(text("SELECT degree_type FROM study_programs LIMIT 1"))
-        except Exception:
-            print("⚠️ 'degree_type' missing. Adding...")
-            try:
-                connection.execute(text("ALTER TABLE study_programs ADD COLUMN degree_type VARCHAR"))
-                connection.commit()
-            except Exception as e:
-                print(e)
-
-        try:
-            # 2. Add 'head_of_program_id'
-            connection.execute(text("SELECT head_of_program_id FROM study_programs LIMIT 1"))
-        except Exception:
-            print("⚠️ 'head_of_program_id' missing. Adding...")
-            try:
-                connection.execute(
-                    text("ALTER TABLE study_programs ADD COLUMN head_of_program_id INTEGER REFERENCES lecturers(ID)"))
-                connection.execute(text("ALTER TABLE study_programs ALTER COLUMN head_of_program DROP NOT NULL"))
-                connection.commit()
-            except Exception as e:
-                print(e)
-
-
-try:
-    models.Base.metadata.create_all(bind=engine)
-    run_migrations()
-    print(" DB connected.")
-except Exception as e:
-    print(" DB error:", e)
-
 app = FastAPI(title="Study Program Backend", root_path="/api")
 
 app.add_middleware(
@@ -58,17 +21,55 @@ app.add_middleware(
 )
 
 
+# --- 🛠️ DATABASE FIXER ENDPOINT ---
+# VISIT THIS URL ONCE AFTER DEPLOYING: /api/fix-db
+@app.get("/fix-db")
+def fix_database():
+    results = []
+    try:
+        with engine.connect() as connection:
+            connection.commit()
+
+            # 1. Fix Study Programs (Add ID link)
+            try:
+                # Check if column exists first to avoid error
+                connection.execute(
+                    text("ALTER TABLE study_programs ADD COLUMN head_of_program_id INTEGER REFERENCES lecturers(ID)"))
+                connection.execute(text("ALTER TABLE study_programs ALTER COLUMN head_of_program DROP NOT NULL"))
+                connection.commit()
+                results.append("✅ Added head_of_program_id to study_programs")
+            except Exception as e:
+                results.append(f"ℹ️ Study Programs check: {e}")
+
+            # 2. Fix Users (Add Lecturer Link)
+            try:
+                connection.execute(text("ALTER TABLE users ADD COLUMN lecturer_id INTEGER REFERENCES lecturers(ID)"))
+                connection.commit()
+                results.append("✅ Added lecturer_id to users")
+            except Exception as e:
+                results.append(f"ℹ️ Users check: {e}")
+
+        return {"status": "Database checks completed", "details": results}
+    except Exception as e:
+        return {"status": "Critical Error", "details": str(e)}
+
+
+# Initialize DB
+try:
+    models.Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print("Startup DB Error:", e)
+
+
 @app.get("/")
 def root(): return {"message": "Backend Online"}
 
 
-# --- AUTH (Ready for later) ---
+# --- AUTH ---
 @app.post("/auth/login", response_model=schemas.Token)
 def login(form_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == form_data.email).first()
-    # Simplified login logic for when you are ready to switch
     if not user or not auth.verify_password(form_data.password, user.password_hash):
-        # Create default admin if missing
         if not user and form_data.email == "admin@icss.com":
             hashed = auth.get_password_hash("admin")
             admin_user = models.User(email="admin@icss.com", password_hash=hashed, role="admin")
@@ -83,96 +84,12 @@ def login(form_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     return {"access_token": access_token, "token_type": "bearer", "role": user.role}
 
 
-# --- PROGRAMS (Updated to use relation) ---
+# --- PROGRAMS ---
 @app.get("/study-programs/", response_model=List[schemas.StudyProgramResponse])
 def read_programs(db: Session = Depends(get_db)):
     return db.query(models.StudyProgram).options(joinedload(models.StudyProgram.head_lecturer)).all()
 
 
-# ... (REST OF YOUR ENDPOINTS REMAIN UNCHANGED FROM PREVIOUS INDEX.PY) ...
-# Paste the rest of your endpoints (Lecturers, Modules, etc.) here
-# --- LECTURERS ---
-@app.get("/lecturers/", response_model=List[schemas.LecturerResponse])
-def read_lecturers(db: Session = Depends(get_db)):
-    return db.query(models.Lecturer).all()
-
-
-@app.post("/lecturers/", response_model=schemas.LecturerResponse)
-def create_lecturer(l: schemas.LecturerCreate, db: Session = Depends(get_db)):
-    db_obj = models.Lecturer(**l.model_dump())
-    db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
-    return db_obj
-
-
-@app.put("/lecturers/{id}", response_model=schemas.LecturerResponse)
-def update_lecturer(id: int, l: schemas.LecturerCreate, db: Session = Depends(get_db)):
-    row = db.query(models.Lecturer).filter(models.Lecturer.id == id).first()
-    if not row: raise HTTPException(404, "Lecturer not found")
-    for k, v in l.model_dump().items(): setattr(row, k, v)
-    db.commit()
-    db.refresh(row)
-    return row
-
-
-@app.delete("/lecturers/{id}")
-def delete_lecturer(id: int, db: Session = Depends(get_db)):
-    row = db.query(models.Lecturer).filter(models.Lecturer.id == id).first()
-    if row: db.delete(row); db.commit()
-    return {"ok": True}
-
-
-# --- MODULES ---
-@app.get("/modules/", response_model=List[schemas.ModuleResponse])
-def read_modules(db: Session = Depends(get_db)):
-    return db.query(models.Module).options(joinedload(models.Module.specializations)).all()
-
-
-@app.post("/modules/", response_model=schemas.ModuleResponse)
-def create_module(m: schemas.ModuleCreate, db: Session = Depends(get_db)):
-    spec_ids = m.specialization_ids
-    module_data = m.model_dump(exclude={"specialization_ids"})
-
-    new_module = models.Module(**module_data)
-
-    if spec_ids:
-        specs = db.query(models.Specialization).filter(models.Specialization.id.in_(spec_ids)).all()
-        new_module.specializations = specs
-
-    db.add(new_module)
-    db.commit()
-    db.refresh(new_module)
-    return new_module
-
-
-@app.put("/modules/{code}", response_model=schemas.ModuleResponse)
-def update_module(code: str, m: schemas.ModuleCreate, db: Session = Depends(get_db)):
-    row = db.query(models.Module).filter(models.Module.module_code == code).first()
-    if not row: raise HTTPException(404)
-
-    spec_ids = m.specialization_ids
-    module_data = m.model_dump(exclude={"specialization_ids"})
-
-    for k, v in module_data.items(): setattr(row, k, v)
-
-    specs = db.query(models.Specialization).filter(models.Specialization.id.in_(spec_ids)).all()
-    row.specializations = specs
-
-    db.commit()
-    db.refresh(row)
-    return row
-
-
-@app.delete("/modules/{code}")
-def delete_module(code: str, db: Session = Depends(get_db)):
-    row = db.query(models.Module).filter(models.Module.module_code == code).first()
-    if row: db.delete(row); db.commit()
-    return {"ok": True}
-
-
-# --- PROGRAMS ---
-# (GET is handled above, add POST/PUT/DELETE)
 @app.post("/study-programs/", response_model=schemas.StudyProgramResponse)
 def create_program(p: schemas.StudyProgramCreate, db: Session = Depends(get_db)):
     row = models.StudyProgram(**p.model_dump())
@@ -199,6 +116,79 @@ def delete_program(id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+# --- LECTURERS ---
+@app.get("/lecturers/", response_model=List[schemas.LecturerResponse])
+def read_lecturers(db: Session = Depends(get_db)):
+    return db.query(models.Lecturer).all()
+
+
+@app.post("/lecturers/", response_model=schemas.LecturerResponse)
+def create_lecturer(l: schemas.LecturerCreate, db: Session = Depends(get_db)):
+    db_obj = models.Lecturer(**l.model_dump())
+    db.add(db_obj);
+    db.commit();
+    db.refresh(db_obj)
+    return db_obj
+
+
+@app.put("/lecturers/{id}", response_model=schemas.LecturerResponse)
+def update_lecturer(id: int, l: schemas.LecturerCreate, db: Session = Depends(get_db)):
+    row = db.query(models.Lecturer).filter(models.Lecturer.id == id).first()
+    if not row: raise HTTPException(404, "Lecturer not found")
+    for k, v in l.model_dump().items(): setattr(row, k, v)
+    db.commit();
+    db.refresh(row)
+    return row
+
+
+@app.delete("/lecturers/{id}")
+def delete_lecturer(id: int, db: Session = Depends(get_db)):
+    row = db.query(models.Lecturer).filter(models.Lecturer.id == id).first()
+    if row: db.delete(row); db.commit()
+    return {"ok": True}
+
+
+# --- MODULES ---
+@app.get("/modules/", response_model=List[schemas.ModuleResponse])
+def read_modules(db: Session = Depends(get_db)):
+    return db.query(models.Module).options(joinedload(models.Module.specializations)).all()
+
+
+@app.post("/modules/", response_model=schemas.ModuleResponse)
+def create_module(m: schemas.ModuleCreate, db: Session = Depends(get_db)):
+    spec_ids = m.specialization_ids
+    module_data = m.model_dump(exclude={"specialization_ids"})
+    new_module = models.Module(**module_data)
+    if spec_ids:
+        specs = db.query(models.Specialization).filter(models.Specialization.id.in_(spec_ids)).all()
+        new_module.specializations = specs
+    db.add(new_module);
+    db.commit();
+    db.refresh(new_module)
+    return new_module
+
+
+@app.put("/modules/{code}", response_model=schemas.ModuleResponse)
+def update_module(code: str, m: schemas.ModuleCreate, db: Session = Depends(get_db)):
+    row = db.query(models.Module).filter(models.Module.module_code == code).first()
+    if not row: raise HTTPException(404)
+    spec_ids = m.specialization_ids
+    module_data = m.model_dump(exclude={"specialization_ids"})
+    for k, v in module_data.items(): setattr(row, k, v)
+    specs = db.query(models.Specialization).filter(models.Specialization.id.in_(spec_ids)).all()
+    row.specializations = specs
+    db.commit();
+    db.refresh(row)
+    return row
+
+
+@app.delete("/modules/{code}")
+def delete_module(code: str, db: Session = Depends(get_db)):
+    row = db.query(models.Module).filter(models.Module.module_code == code).first()
+    if row: db.delete(row); db.commit()
+    return {"ok": True}
+
+
 # --- SPECIALIZATIONS ---
 @app.get("/specializations/", response_model=List[schemas.SpecializationResponse])
 def read_specs(db: Session = Depends(get_db)):
@@ -207,18 +197,12 @@ def read_specs(db: Session = Depends(get_db)):
 
 @app.post("/specializations/", response_model=schemas.SpecializationResponse)
 def create_spec(s: schemas.SpecializationCreate, db: Session = Depends(get_db)):
-    # 1. Prepare data
     spec_data = s.model_dump()
-
-    # 2. ✅ FIX: Fetch the program name and fill 'study_program'
     program = db.query(models.StudyProgram).filter(models.StudyProgram.id == s.program_id).first()
-    if program:
-        spec_data["study_program"] = program.name
-
-    # 3. Create and Save
+    if program: spec_data["study_program"] = program.name
     row = models.Specialization(**spec_data)
-    db.add(row)
-    db.commit()
+    db.add(row);
+    db.commit();
     db.refresh(row)
     return row
 
@@ -227,14 +211,9 @@ def create_spec(s: schemas.SpecializationCreate, db: Session = Depends(get_db)):
 def update_spec(id: int, s: schemas.SpecializationCreate, db: Session = Depends(get_db)):
     row = db.query(models.Specialization).filter(models.Specialization.id == id).first()
     if not row: raise HTTPException(404)
-
-    # Update fields
     for k, v in s.model_dump().items(): setattr(row, k, v)
-
     program = db.query(models.StudyProgram).filter(models.StudyProgram.id == s.program_id).first()
-    if program:
-        row.study_program = program.name
-
+    if program: row.study_program = program.name
     db.commit();
     db.refresh(row)
     return row
@@ -312,16 +291,15 @@ def update_availability(payload: schemas.AvailabilityUpdate, db: Session = Depen
     existing = db.query(models.LecturerAvailability).filter(
         models.LecturerAvailability.lecturer_id == payload.lecturer_id
     ).first()
-
     if existing:
         existing.schedule_data = payload.schedule_data
-        db.commit()
+        db.commit();
         db.refresh(existing)
         return existing
     else:
         new_entry = models.LecturerAvailability(**payload.model_dump())
-        db.add(new_entry)
-        db.commit()
+        db.add(new_entry);
+        db.commit();
         db.refresh(new_entry)
         return new_entry
 

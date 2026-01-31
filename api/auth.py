@@ -14,7 +14,6 @@ from .database import get_db
 
 load_dotenv()
 
-# ✅ KEEP THIS: It reads from Vercel, or uses the fallback for local dev
 SECRET_KEY = os.getenv("SECRET_KEY", "FALLBACK_DEV_KEY_ONLY_CHANGE_ME_IN_PROD")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
