@@ -28,7 +28,8 @@ app.add_middleware(
 
 
 @app.get("/")
-def root(): return {"message": "Backend Online"}
+def root():
+    return {"message": "Backend Online"}
 
 
 # --- 🛠️ SMART SEED & MIGRATION ENDPOINT ---
@@ -59,9 +60,11 @@ def check_admin_or_pm(user: models.User):
 
 def check_is_hosp_for_program(user: models.User, program: models.StudyProgram):
     role = user.role.lower()
-    if role in ["admin", "pm"]: return True
+    if role in ["admin", "pm"]:
+        return True
     if role == "hosp":
-        if not program: raise HTTPException(404)
+        if not program:
+            raise HTTPException(404)
         if user.lecturer_id != program.head_of_program_id:
             raise HTTPException(status_code=403, detail="Unauthorized for this program")
         return True
@@ -79,9 +82,18 @@ def login(form_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     safe_lec_id = user.lecturer_id if user.lecturer_id is not None else 0
 
     access_token = auth.create_access_token(data={
-        "sub": user.email, "role": user.role, "lecturer_id": safe_lec_id
+        "sub": user.email,
+        "role": user.role,
+        "lecturer_id": safe_lec_id
     })
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role}
+
+    # ✅ IMPORTANT: Return lecturer_id to frontend
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.role,
+        "lecturer_id": user.lecturer_id
+    }
 
 
 # --- PROGRAMS ---
@@ -95,8 +107,8 @@ def create_program(p: schemas.StudyProgramCreate, db: Session = Depends(get_db),
                    current_user: models.User = Depends(auth.get_current_user)):
     check_admin_or_pm(current_user)
     row = models.StudyProgram(**p.model_dump())
-    db.add(row);
-    db.commit();
+    db.add(row)
+    db.commit()
     db.refresh(row)
     return row
 
@@ -105,10 +117,15 @@ def create_program(p: schemas.StudyProgramCreate, db: Session = Depends(get_db),
 def update_program(id: int, p: schemas.StudyProgramCreate, db: Session = Depends(get_db),
                    current_user: models.User = Depends(auth.get_current_user)):
     row = db.query(models.StudyProgram).filter(models.StudyProgram.id == id).first()
-    if not row: raise HTTPException(404)
+    if not row:
+        raise HTTPException(404)
+
     check_is_hosp_for_program(current_user, row)
-    for k, v in p.model_dump().items(): setattr(row, k, v)
-    db.commit();
+
+    for k, v in p.model_dump().items():
+        setattr(row, k, v)
+
+    db.commit()
     db.refresh(row)
     return row
 
@@ -117,7 +134,9 @@ def update_program(id: int, p: schemas.StudyProgramCreate, db: Session = Depends
 def delete_program(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     check_admin_or_pm(current_user)
     row = db.query(models.StudyProgram).filter(models.StudyProgram.id == id).first()
-    if row: db.delete(row); db.commit()
+    if row:
+        db.delete(row)
+        db.commit()
     return {"ok": True}
 
 
@@ -158,16 +177,20 @@ def update_availability(payload: schemas.AvailabilityUpdate, db: Session = Depen
     role = current_user.role.lower()
     if role == "lecturer" and current_user.lecturer_id != payload.lecturer_id:
         raise HTTPException(403)
+
     existing = db.query(models.LecturerAvailability).filter(
-        models.LecturerAvailability.lecturer_id == payload.lecturer_id).first()
+        models.LecturerAvailability.lecturer_id == payload.lecturer_id
+    ).first()
+
     if existing:
         existing.schedule_data = payload.schedule_data
-        db.commit();
+        db.commit()
         db.refresh(existing)
         return existing
+
     row = models.LecturerAvailability(**payload.model_dump())
-    db.add(row);
-    db.commit();
+    db.add(row)
+    db.commit()
     db.refresh(row)
     return row
 

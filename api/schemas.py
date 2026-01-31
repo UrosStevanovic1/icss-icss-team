@@ -10,6 +10,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     role: str
+    lecturer_id: Optional[int] = None  # ✅ ADD THIS
 
 # --- LECTURERS ---
 class LecturerBase(BaseModel):
