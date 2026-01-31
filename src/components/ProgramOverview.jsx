@@ -63,7 +63,7 @@ const styles = {
   // Code | Name | Sem | Cat | ECTS | Assess | Room | Specialization | Actions
   moduleHeader: {
     display: "grid",
-    gridTemplateColumns: "80px 3fr 80px 100px 60px 1.2fr 1.2fr 1.5fr 110px",
+    gridTemplateColumns: "80px 3fr 80px 100px 60px 1.2fr 1.2fr 1.5fr 130px", // Increased actions col width
     gap: "15px",
     padding: "10px 15px",
     background: "#f8fafc",
@@ -82,7 +82,7 @@ const styles = {
     background: "white",
     borderBottom: "1px solid #f1f5f9",
     display: "grid",
-    gridTemplateColumns: "80px 3fr 80px 100px 60px 1.2fr 1.2fr 1.5fr 110px",
+    gridTemplateColumns: "80px 3fr 80px 100px 60px 1.2fr 1.2fr 1.5fr 130px", // Matches Header
     alignItems: "center",
     padding: "12px 15px",
     gap: "15px",
@@ -154,11 +154,9 @@ export default function ProgramOverview({ initialData, clearInitialData }) {
   const [specializations, setSpecializations] = useState([]);
   const [modules, setModules] = useState([]);
 
-  // Fetch data required for nested views
   const refreshNestedData = useCallback((progId) => {
     api.getSpecializations().then(res => setSpecializations((res || []).filter(s => s.program_id === progId)));
     api.getModules().then(allModules => {
-        // We filter for modules belonging to this program
         setModules((allModules || []).filter(m => m.program_id === progId));
     });
   }, []);
@@ -222,7 +220,6 @@ export default function ProgramOverview({ initialData, clearInitialData }) {
   );
 }
 
-// ... ProgramList component ...
 function ProgramList({ programs, lecturers, onSelect, refresh }) {
   const [showCreate, setShowCreate] = useState(false);
   const [levelFilter, setLevelFilter] = useState("Bachelor");
@@ -346,7 +343,6 @@ function ProgramList({ programs, lecturers, onSelect, refresh }) {
   );
 }
 
-// --- VIEW: WORKSPACE (Detail) ---
 function ProgramWorkspace({ program, lecturers, specializations, modules, onBack, refreshSpecs, onUpdateProgram }) {
   const [activeTab, setActiveTab] = useState("INFO");
   const [isEditing, setIsEditing] = useState(false);
@@ -354,7 +350,7 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
   const [editDraft, setEditDraft] = useState({});
 
   // Module Management State
-  const [moduleFormMode, setModuleFormMode] = useState("none"); // 'none' | 'add' | 'edit'
+  const [moduleFormMode, setModuleFormMode] = useState("none");
   const [moduleEditingCode, setModuleEditingCode] = useState(null);
   const [moduleDraft, setModuleDraft] = useState({});
   const [selectedSpecToAdd, setSelectedSpecToAdd] = useState("");
@@ -393,7 +389,7 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
       setModuleDraft({
           module_code: "", name: "", ects: 5, room_type: "Lecture Classroom", semester: 1,
           assessment_type: "Written Exam", category: "Core",
-          program_id: String(program.id), // Pre-fill current program
+          program_id: String(program.id),
           specialization_ids: []
       });
       setModuleFormMode("add");
@@ -422,7 +418,7 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
           await api.deleteModule(moduleToDelete.module_code);
           setShowModuleDeleteModal(false);
           setModuleToDelete(null);
-          refreshSpecs(); // Refresh data to remove deleted module
+          refreshSpecs();
       } catch (e) { alert("Error deleting module."); }
   };
 
@@ -440,7 +436,7 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
           if (moduleFormMode === "add") await api.createModule(payload);
           else await api.updateModule(moduleEditingCode, payload);
           setModuleFormMode("none");
-          refreshSpecs(); // Refresh data
+          refreshSpecs();
       } catch (e) { alert("Error saving module."); }
   };
 
@@ -459,7 +455,6 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
 
   return (
     <div>
-      {/* Top Bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <button style={{ ...styles.btn, background:"transparent", color:"#64748b", padding:0 }} onClick={onBack}>← Back to List</button>
         <button style={{ ...styles.btn, ...styles.dangerBtn }} onClick={() => setShowDeleteModal(true)}>Delete Program</button>
@@ -540,7 +535,6 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
                 <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openModuleAdd}>+ New Module</button>
             </div>
 
-            {/* --- MODULE GRID HEADER --- */}
             <div style={styles.moduleHeader}>
                 <div>Code</div>
                 <div>Module Name</div>
@@ -553,7 +547,6 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
                 <div style={{textAlign:'right'}}>Actions</div>
             </div>
 
-            {/* --- MODULE GRID ROWS --- */}
             <div style={{border: '1px solid #e2e8f0', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', overflow:'hidden'}}>
                 {modules.map(m => (
                     <div key={m.module_code} style={styles.moduleCard}>
@@ -575,9 +568,10 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
                             </span>
                         </div>
 
+                        {/* ✅ FIX: Consistent Buttons */}
                         <div style={styles.actionContainer}>
                             <button style={{...styles.actionBtn, ...styles.editBtn}} onClick={() => openModuleEdit(m)}>Edit</button>
-                            <button style={{...styles.actionBtn, ...styles.delBtn}} onClick={() => initiateModuleDelete(m)}>Del</button>
+                            <button style={{...styles.actionBtn, ...styles.delBtn}} onClick={() => initiateModuleDelete(m)}>Delete</button>
                         </div>
                     </div>
                 ))}
@@ -588,7 +582,6 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
 
       </div>
 
-      {/* PROGRAM DELETE MODAL */}
       {showDeleteModal && (
         <DeleteConfirmationModal
             title="Delete Program?"
@@ -604,7 +597,6 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
         />
       )}
 
-      {/* MODULE DELETE MODAL */}
       {showModuleDeleteModal && (
         <DeleteConfirmationModal
             title="Delete Module?"
@@ -615,7 +607,6 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
         />
       )}
 
-      {/* MODULE FORM MODAL */}
       {(moduleFormMode === "add" || moduleFormMode === "edit") && (
         <div style={styles.overlay}>
             <div style={{...styles.modal, width:'650px'}}>
@@ -642,13 +633,11 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
 
                 <hr style={{margin:'20px 0', border:'0', borderTop:'1px solid #eee'}} />
 
-                {/* Specialization Linking */}
                 <div style={{...styles.formGroup, background: '#f9f9f9', padding: '15px', borderRadius: '6px', border:'1px solid #eee'}}>
                     <label style={{...styles.label, marginBottom:'10px'}}>Linked Specializations</label>
                     <div style={{display:'flex', gap:'10px', marginBottom:'15px'}}>
                         <select style={styles.select} value={selectedSpecToAdd} onChange={(e) => setSelectedSpecToAdd(e.target.value)}>
                             <option value="">-- Select Specialization --</option>
-                            {/* Filter specs that are already added */}
                             {specializations.filter(s => !moduleDraft.specialization_ids.includes(s.id)).map(s => (<option key={s.id} value={s.id}>{s.name} ({s.acronym})</option>))}
                         </select>
                         <button type="button" style={{...styles.btn, ...styles.primaryBtn}} onClick={linkSpecToDraft}>Link</button>
@@ -789,12 +778,12 @@ function SpecializationsManager({ programId, specializations, refresh }) {
                                     {isEditing ? (
                                         <div style={{display:'flex', gap:'5px', justifyContent:'flex-end'}}>
                                             <button style={{...styles.btn, ...styles.primaryBtn, padding:'4px 8px'}} onClick={saveEdit}>Save</button>
-                                            <button style={{...styles.btn, background:'#ccc', padding:'4px 8px'}} onClick={() => setEditingSpecId(null)}>Cancel</button>
+                                            <button style={{...styles.btn, background:'#e2e8f0', color:'#475569', padding:'4px 8px'}} onClick={() => setEditingSpecId(null)}>Cancel</button>
                                         </div>
                                     ) : (
-                                        <div style={{display:'flex', gap:'5px', justifyContent:'flex-end'}}>
-                                            <button style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontWeight:600 }} onClick={() => startEdit(s)}>Edit</button>
-                                            <button style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontWeight:600 }} onClick={() => handleDelete(s.id)}>Remove</button>
+                                        <div style={styles.actionContainer}>
+                                            <button style={{...styles.actionBtn, ...styles.editBtn}} onClick={() => startEdit(s)}>Edit</button>
+                                            <button style={{...styles.actionBtn, ...styles.delBtn}} onClick={() => handleDelete(s.id)}>Delete</button>
                                         </div>
                                     )}
                                 </td>
