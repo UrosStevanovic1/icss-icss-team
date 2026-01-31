@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../api";
 
 // --- STYLES ---
@@ -60,10 +60,10 @@ const styles = {
   listCardHover: { backgroundColor: "#f1f5f9" },
 
   // --- MODULE LIST LAYOUT (INSIDE TABS) ---
-  // Code | Name | Sem | Cat | ECTS | Assess | Room | Specialization
+  // Code | Name | Sem | Cat | ECTS | Assess | Room | Specialization | Actions
   moduleHeader: {
     display: "grid",
-    gridTemplateColumns: "80px 3fr 80px 100px 60px 1.2fr 1.2fr 150px",
+    gridTemplateColumns: "80px 3fr 80px 100px 60px 1.2fr 1.2fr 1.5fr 110px",
     gap: "15px",
     padding: "10px 15px",
     background: "#f8fafc",
@@ -82,7 +82,7 @@ const styles = {
     background: "white",
     borderBottom: "1px solid #f1f5f9",
     display: "grid",
-    gridTemplateColumns: "80px 3fr 80px 100px 60px 1.2fr 1.2fr 150px",
+    gridTemplateColumns: "80px 3fr 80px 100px 60px 1.2fr 1.2fr 1.5fr 110px",
     alignItems: "center",
     padding: "12px 15px",
     gap: "15px",
@@ -111,6 +111,8 @@ const styles = {
   dangerBtn: { background: "#fee2e2", color: "#ef4444" },
   input: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", marginBottom: "15px", boxSizing: "border-box" },
   select: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", marginBottom: "15px", background: "white" },
+  formGroup: { marginBottom: "15px" },
+  label: { display: "block", marginBottom: "5px", fontWeight: "600", fontSize: "0.85rem", color: "#64748b" },
 
   // Badges
   badge: { padding: "4px 0", borderRadius: "6px", fontSize: "0.75rem", fontWeight: "bold", textTransform: "uppercase", display: "block", width: "100%", textAlign: "center" },
@@ -124,10 +126,20 @@ const styles = {
   catElective: { background: "#fef3c7", color: "#92400e" },
   catShared: { background: "#f3e8ff", color: "#6b21a8" },
 
+  // Action Buttons
+  actionContainer: { display: "flex", gap: "8px", justifyContent: "flex-end" },
+  actionBtn: { padding: "4px 8px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: "600" },
+  editBtn: { background: "#e2e8f0", color: "#475569" },
+  delBtn: { background: "#fee2e2", color: "#ef4444" },
+
   // Modal
   overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
-  modal: { backgroundColor: "#ffffff", padding: "30px", borderRadius: "12px", width: "500px", maxWidth: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }
+  modal: { backgroundColor: "#ffffff", padding: "30px", borderRadius: "12px", width: "650px", maxWidth: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }
 };
+
+const STANDARD_ROOM_TYPES = ["Lecture Classroom", "Computer Lab", "Seminar"];
+const ASSESSMENT_TYPES = ["Written Exam", "Presentation", "Project", "Report"];
+const CATEGORY_TYPES = ["Core", "Shared", "Elective"];
 
 const formatDate = (isoDate) => {
   if (!isoDate) return "-";
@@ -142,20 +154,12 @@ export default function ProgramOverview({ initialData, clearInitialData }) {
   const [specializations, setSpecializations] = useState([]);
   const [modules, setModules] = useState([]);
 
-  // Load all data to allow filtering later.
-  // We need to fetch specializations separately or filter fetched ones to display correct "Linked Specialization" info.
-  // Note: For the Module list inside curriculum, we need to know which specialization a module is linked to *within this program*.
-
+  // Fetch data required for nested views
   const refreshNestedData = useCallback((progId) => {
     api.getSpecializations().then(res => setSpecializations((res || []).filter(s => s.program_id === progId)));
-    // We need all modules that are either owned by the program OR linked to its specializations.
-    // However, the standard backend pattern for "modules of a program" usually implies ownership.
-    // If you want to show linked modules too, we'd filter the full module list.
-    // For now, we stick to fetching modules owned by the program ID as per existing logic, but we can enhance display.
     api.getModules().then(allModules => {
-        // Filter modules owned by this program
-        const programModules = (allModules || []).filter(m => m.program_id === progId);
-        setModules(programModules);
+        // We filter for modules belonging to this program
+        setModules((allModules || []).filter(m => m.program_id === progId));
     });
   }, []);
 
@@ -218,7 +222,7 @@ export default function ProgramOverview({ initialData, clearInitialData }) {
   );
 }
 
-// ... ProgramList component remains unchanged ...
+// ... ProgramList component ...
 function ProgramList({ programs, lecturers, onSelect, refresh }) {
   const [showCreate, setShowCreate] = useState(false);
   const [levelFilter, setLevelFilter] = useState("Bachelor");
@@ -349,6 +353,14 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editDraft, setEditDraft] = useState({});
 
+  // Module Management State
+  const [moduleFormMode, setModuleFormMode] = useState("none"); // 'none' | 'add' | 'edit'
+  const [moduleEditingCode, setModuleEditingCode] = useState(null);
+  const [moduleDraft, setModuleDraft] = useState({});
+  const [selectedSpecToAdd, setSelectedSpecToAdd] = useState("");
+  const [showModuleDeleteModal, setShowModuleDeleteModal] = useState(false);
+  const [moduleToDelete, setModuleToDelete] = useState(null);
+
   useEffect(() => {
     setEditDraft({ ...program });
   }, [program]);
@@ -367,19 +379,87 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
       return styles.catShared;
   };
 
-  // Helper to find linked specializations for a module IN THIS PROGRAM
   const getLinkedSpecName = (module) => {
       if (!module.specializations || module.specializations.length === 0) return "Common";
-
-      // Filter specs that belong to THIS program
       const relevantSpecs = module.specializations.filter(s => s.program_id === program.id);
-
-      if (relevantSpecs.length === 0) return "Common"; // Linked to spec in another program? Or just none.
+      if (relevantSpecs.length === 0) return "Common";
       return relevantSpecs.map(s => s.acronym).join(", ");
+  };
+
+  // --- MODULE ACTIONS ---
+  const openModuleAdd = () => {
+      setModuleEditingCode(null);
+      setSelectedSpecToAdd("");
+      setModuleDraft({
+          module_code: "", name: "", ects: 5, room_type: "Lecture Classroom", semester: 1,
+          assessment_type: "Written Exam", category: "Core",
+          program_id: String(program.id), // Pre-fill current program
+          specialization_ids: []
+      });
+      setModuleFormMode("add");
+  };
+
+  const openModuleEdit = (m) => {
+      setModuleEditingCode(m.module_code);
+      setSelectedSpecToAdd("");
+      setModuleDraft({
+          module_code: m.module_code, name: m.name, ects: m.ects, room_type: m.room_type,
+          semester: m.semester, assessment_type: m.assessment_type || "Written Exam", category: m.category || "Core",
+          program_id: m.program_id ? String(m.program_id) : String(program.id),
+          specialization_ids: (m.specializations || []).map(s => s.id)
+      });
+      setModuleFormMode("edit");
+  };
+
+  const initiateModuleDelete = (m) => {
+      setModuleToDelete(m);
+      setShowModuleDeleteModal(true);
+  };
+
+  const confirmModuleDelete = async () => {
+      if (!moduleToDelete) return;
+      try {
+          await api.deleteModule(moduleToDelete.module_code);
+          setShowModuleDeleteModal(false);
+          setModuleToDelete(null);
+          refreshSpecs(); // Refresh data to remove deleted module
+      } catch (e) { alert("Error deleting module."); }
+  };
+
+  const saveModule = async () => {
+      if (!moduleDraft.module_code || !moduleDraft.name) return alert("Code and Name are required");
+
+      const payload = {
+          ...moduleDraft,
+          ects: parseInt(moduleDraft.ects),
+          semester: parseInt(moduleDraft.semester),
+          program_id: parseInt(moduleDraft.program_id)
+      };
+
+      try {
+          if (moduleFormMode === "add") await api.createModule(payload);
+          else await api.updateModule(moduleEditingCode, payload);
+          setModuleFormMode("none");
+          refreshSpecs(); // Refresh data
+      } catch (e) { alert("Error saving module."); }
+  };
+
+  const linkSpecToDraft = () => {
+      if (!selectedSpecToAdd) return;
+      const specId = parseInt(selectedSpecToAdd);
+      if (!moduleDraft.specialization_ids.includes(specId)) {
+          setModuleDraft(prev => ({ ...prev, specialization_ids: [...prev.specialization_ids, specId] }));
+      }
+      setSelectedSpecToAdd("");
+  };
+
+  const unlinkSpecFromDraft = (specId) => {
+      setModuleDraft(prev => ({ ...prev, specialization_ids: prev.specialization_ids.filter(id => id !== specId) }));
   };
 
   return (
     <div>
+      {/* Top Bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <button style={{ ...styles.btn, background:"transparent", color:"#64748b", padding:0 }} onClick={onBack}>← Back to List</button>
         <button style={{ ...styles.btn, ...styles.dangerBtn }} onClick={() => setShowDeleteModal(true)}>Delete Program</button>
@@ -455,7 +535,10 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
 
         {activeTab === "MODULES" && (
           <div>
-            <h3>Curriculum Structure</h3>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+                <h3 style={{margin:0}}>Curriculum Structure</h3>
+                <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openModuleAdd}>+ New Module</button>
+            </div>
 
             {/* --- MODULE GRID HEADER --- */}
             <div style={styles.moduleHeader}>
@@ -466,7 +549,8 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
                 <div style={{textAlign:'center'}}>ECTS</div>
                 <div>Assessment</div>
                 <div>Room Type</div>
-                <div style={{textAlign:'right'}}>Specialization</div>
+                <div>Specialization</div>
+                <div style={{textAlign:'right'}}>Actions</div>
             </div>
 
             {/* --- MODULE GRID ROWS --- */}
@@ -485,10 +569,15 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
                         <div style={styles.cellText}>{m.assessment_type || "-"}</div>
                         <div style={styles.cellText}>{m.room_type}</div>
 
-                        <div style={{textAlign:'right'}}>
+                        <div style={styles.cellText}>
                             <span style={{fontSize:'0.85rem', color:'#475569', fontWeight:'500'}}>
                                 {getLinkedSpecName(m)}
                             </span>
+                        </div>
+
+                        <div style={styles.actionContainer}>
+                            <button style={{...styles.actionBtn, ...styles.editBtn}} onClick={() => openModuleEdit(m)}>Edit</button>
+                            <button style={{...styles.actionBtn, ...styles.delBtn}} onClick={() => initiateModuleDelete(m)}>Del</button>
                         </div>
                     </div>
                 ))}
@@ -499,8 +588,12 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
 
       </div>
 
+      {/* PROGRAM DELETE MODAL */}
       {showDeleteModal && (
         <DeleteConfirmationModal
+            title="Delete Program?"
+            msg="This action cannot be undone. It will remove the program and unlink all related specializations and modules."
+            itemName={program.name}
             onClose={() => setShowDeleteModal(false)}
             onConfirm={() => {
                 api.deleteProgram(program.id).then(() => {
@@ -509,6 +602,78 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
                 }).catch(err => alert("Error deleting program."));
             }}
         />
+      )}
+
+      {/* MODULE DELETE MODAL */}
+      {showModuleDeleteModal && (
+        <DeleteConfirmationModal
+            title="Delete Module?"
+            msg="Are you sure you want to delete this module? This action cannot be undone."
+            itemName={moduleToDelete?.name}
+            onClose={() => setShowModuleDeleteModal(false)}
+            onConfirm={confirmModuleDelete}
+        />
+      )}
+
+      {/* MODULE FORM MODAL */}
+      {(moduleFormMode === "add" || moduleFormMode === "edit") && (
+        <div style={styles.overlay}>
+            <div style={{...styles.modal, width:'650px'}}>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
+                    <h3 style={{margin:0}}>{moduleFormMode === "add" ? "Create Module" : "Edit Module"}</h3>
+                    <button onClick={() => setModuleFormMode("none")} style={{border:'none', background:'transparent', fontSize:'1.5rem', cursor:'pointer'}}>×</button>
+                </div>
+
+                <div style={{display:'flex', gap:'15px'}}>
+                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Module Code</label><input style={styles.input} value={moduleDraft.module_code} onChange={(e) => setModuleDraft({ ...moduleDraft, module_code: e.target.value })} disabled={moduleFormMode === "edit"} placeholder="CS101" /></div>
+                    <div style={{...styles.formGroup, flex:2}}><label style={styles.label}>Name</label><input style={styles.input} value={moduleDraft.name} onChange={(e) => setModuleDraft({ ...moduleDraft, name: e.target.value })} /></div>
+                </div>
+
+                <div style={{display:'flex', gap:'15px'}}>
+                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>ECTS</label><input type="number" style={styles.input} value={moduleDraft.ects} onChange={(e) => setModuleDraft({ ...moduleDraft, ects: e.target.value })} /></div>
+                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Semester</label><input type="number" style={styles.input} value={moduleDraft.semester} onChange={(e) => setModuleDraft({ ...moduleDraft, semester: e.target.value })} /></div>
+                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Category</label><select style={styles.select} value={moduleDraft.category} onChange={(e) => setModuleDraft({ ...moduleDraft, category: e.target.value })}>{CATEGORY_TYPES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                </div>
+
+                <div style={{display:'flex', gap:'15px'}}>
+                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Room Type</label><select style={styles.select} value={moduleDraft.room_type} onChange={(e) => setModuleDraft({...moduleDraft, room_type: e.target.value})}><optgroup label="Standard">{STANDARD_ROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</optgroup></select></div>
+                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Assessment</label><select style={styles.select} value={moduleDraft.assessment_type} onChange={(e) => setModuleDraft({ ...moduleDraft, assessment_type: e.target.value })}>{ASSESSMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                </div>
+
+                <hr style={{margin:'20px 0', border:'0', borderTop:'1px solid #eee'}} />
+
+                {/* Specialization Linking */}
+                <div style={{...styles.formGroup, background: '#f9f9f9', padding: '15px', borderRadius: '6px', border:'1px solid #eee'}}>
+                    <label style={{...styles.label, marginBottom:'10px'}}>Linked Specializations</label>
+                    <div style={{display:'flex', gap:'10px', marginBottom:'15px'}}>
+                        <select style={styles.select} value={selectedSpecToAdd} onChange={(e) => setSelectedSpecToAdd(e.target.value)}>
+                            <option value="">-- Select Specialization --</option>
+                            {/* Filter specs that are already added */}
+                            {specializations.filter(s => !moduleDraft.specialization_ids.includes(s.id)).map(s => (<option key={s.id} value={s.id}>{s.name} ({s.acronym})</option>))}
+                        </select>
+                        <button type="button" style={{...styles.btn, ...styles.primaryBtn}} onClick={linkSpecToDraft}>Link</button>
+                    </div>
+                    <div style={{maxHeight:'150px', overflowY:'auto', display:'flex', flexWrap:'wrap', gap:'8px'}}>
+                        {moduleDraft.specialization_ids.map(specId => {
+                            const spec = specializations.find(s => s.id === specId);
+                            if (!spec) return null;
+                            return (
+                                <div key={spec.id} style={{background:'white', border:'1px solid #ddd', padding:'4px 10px', borderRadius:'15px', fontSize:'0.85rem', display:'flex', alignItems:'center', gap:'8px'}}>
+                                    <span>{spec.name} ({spec.acronym})</span>
+                                    <button onClick={() => unlinkSpecFromDraft(spec.id)} style={{border:'none', background:'transparent', color:'#ef4444', cursor:'pointer', fontWeight:'bold'}}>×</button>
+                                </div>
+                            );
+                        })}
+                        {moduleDraft.specialization_ids.length === 0 && <div style={{fontStyle:'italic', color:'#999'}}>No specializations linked.</div>}
+                    </div>
+                </div>
+
+                <div style={{marginTop: '25px', display:'flex', justifyContent:'flex-end', gap:'10px'}}>
+                    <button style={{...styles.btn, background:'#f8f9fa', border:'1px solid #ddd'}} onClick={() => setModuleFormMode("none")}>Cancel</button>
+                    <button style={{...styles.btn, ...styles.primaryBtn}} onClick={saveModule}>Save</button>
+                </div>
+            </div>
+        </div>
       )}
     </div>
   );
@@ -643,18 +808,19 @@ function SpecializationsManager({ programId, specializations, refresh }) {
     );
 }
 
-function DeleteConfirmationModal({ onClose, onConfirm }) {
+function DeleteConfirmationModal({ title, msg, itemName, onClose, onConfirm }) {
     const [input, setInput] = useState("");
     const isMatch = input === "DELETE";
 
     return (
         <div style={styles.overlay}>
-            <div style={styles.modal}>
-                <h3 style={{ marginTop: 0, color: "#991b1b" }}>⚠️ Delete Program?</h3>
-                <p style={{ color: "#4b5563", marginBottom: "20px" }}>
-                    This action cannot be undone. It will remove the program and unlink all related specializations and modules.
+            <div style={{...styles.modal, width:'450px', maxHeight:'none'}}>
+                <h3 style={{ marginTop: 0, color: "#991b1b" }}>{title}</h3>
+                <p style={{ color: "#4b5563", marginBottom: "20px", lineHeight:'1.5' }}>
+                    {msg} <br/>
+                    {itemName && <strong>{itemName}</strong>}
                 </p>
-                <p style={{ fontSize: "0.9rem", fontWeight: "bold", marginBottom: "5px" }}>
+                <p style={{ fontSize: "0.9rem", fontWeight: "bold", marginBottom: "8px", color:'#374151' }}>
                     Type "DELETE" to confirm:
                 </p>
                 <input
