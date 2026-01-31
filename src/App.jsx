@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import "./App.css";
 import Layout from "./Layout";
 
@@ -14,8 +14,9 @@ import AvailabilityOverview from "./components/AvailabilityOverview";
 function App() {
   const [activeTab, setActiveTab] = useState("programs");
 
-  // Initialize state from localStorage to persist between reloads
-  const [token, setToken] = useState(localStorage.getItem("token"));
+  // ✅ FIX: Removed 'setToken' causing build error (unused)
+  // We only read the token here; writing happens in Layout.jsx + Reload
+  const [token] = useState(localStorage.getItem("token"));
   const [currentUserRole, setCurrentUserRole] = useState(localStorage.getItem("userRole") || "Guest");
 
   const [navData, setNavData] = useState(null);
@@ -44,7 +45,7 @@ function App() {
       case "programs":
         return <ProgramOverview initialData={navData} clearInitialData={() => setNavData(null)} {...commonProps} />;
       case "modules":
-        return <ModuleOverview {...commonProps} />;
+        return <ModuleOverview onNavigate={handleNavigate} {...commonProps} />;
       case "lecturers":
         return <LecturerOverview {...commonProps} />;
       case "rooms":
