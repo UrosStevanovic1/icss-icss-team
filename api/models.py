@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from .database import Base
 
-# Association Table
+# Association Table for Many-to-Many (Modules <-> Specializations)
 module_specializations = Table(
     "module_specializations",
     Base.metadata,
@@ -24,7 +24,9 @@ class StudyProgram(Base):
     location = Column(String, nullable=True)
     level = Column(String, nullable=False, server_default="Bachelor")
 
+    # Relationships
     specializations = relationship("Specialization", back_populates="program", cascade="all, delete-orphan")
+    modules = relationship("Module", back_populates="program")
 
 
 class Specialization(Base):
@@ -50,15 +52,17 @@ class Module(Base):
     assessment_type = Column(String, nullable=True)
     semester = Column(Integer, nullable=False)
     category = Column(String, nullable=True)
-    # Ensure this matches your SQL "program_id"
+
+    # Linking to Study Program
     program_id = Column(Integer, ForeignKey("study_programs.id"), nullable=True)
 
+    program = relationship("StudyProgram", back_populates="modules")
     specializations = relationship("Specialization", secondary=module_specializations, back_populates="modules")
 
 
 class Lecturer(Base):
     __tablename__ = "lecturers"
-    # SQL uses "ID" (Caps), so we map it here
+    # ✅ FIX: Map to uppercase "ID" from database
     id = Column("ID", Integer, primary_key=True, index=True)
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=True)
@@ -74,7 +78,7 @@ class Lecturer(Base):
 class LecturerAvailability(Base):
     __tablename__ = "lecturer_availabilities"
     id = Column(Integer, primary_key=True, index=True)
-    # FK references the table "lecturers" and column "ID"
+    # Refers to "lecturers.ID" because of the mapping above
     lecturer_id = Column(Integer, ForeignKey("lecturers.ID"), unique=True, nullable=False)
     schedule_data = Column(JSONB, nullable=False, server_default='{}')
 
@@ -82,7 +86,7 @@ class LecturerAvailability(Base):
 class Group(Base):
     __tablename__ = "groups"
     id = Column(Integer, primary_key=True, index=True)
-    # Mapping Capitalized Columns
+    # ✅ FIX: Map to capitalized column names
     name = Column("Name", String, nullable=False)
     size = Column("Size", Integer, nullable=False)
     description = Column("Brief description", String, nullable=True)
@@ -98,7 +102,7 @@ class Room(Base):
     capacity = Column(Integer, nullable=False)
     type = Column(String, nullable=False)
     status = Column(Boolean, nullable=False)
-    # SQL uses "Equipment" (Caps)
+    # ✅ FIX: Map to "Equipment"
     equipment = Column("Equipment", String, nullable=True)
     location = Column(String, nullable=True)
 
@@ -107,6 +111,7 @@ class ConstraintType(Base):
     __tablename__ = "constraint_types"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
+    # Note: Using "active" here. If DB has "is_active", change first arg to "is_active"
     active = Column(Boolean, nullable=False, default=True)
     constraint_level = Column(String, nullable=True)
     constraint_format = Column(String, nullable=True)

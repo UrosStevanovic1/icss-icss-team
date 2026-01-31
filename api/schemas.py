@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
-from typing import List, Optional, Dict, Any, Literal
+from pydantic import BaseModel, ConfigDict
+from typing import List, Optional, Dict, Any
 
 
 # --- AVAILABILITY ---
@@ -66,9 +66,9 @@ class ModuleResponse(BaseModel):
     semester: int
     assessment_type: Optional[str] = None
     category: Optional[str] = None
-    program_id: Optional[int] = None  # Added for Filtering
+    program_id: Optional[int] = None  # Critical for filtering
 
-    # We return the list of specializations so we can display them
+    # Return the nested specs so we can display them
     specializations: List[SpecializationResponse] = []
 
     model_config = ConfigDict(from_attributes=True)

@@ -19,8 +19,7 @@ app.add_middleware(
 )
 
 try:
-    # This creates tables only if they don't exist.
-    # It won't modify existing tables, which is safer for you now.
+    # Safely create tables if they don't exist
     models.Base.metadata.create_all(bind=engine)
     print("✅ DB connected.")
 except Exception as e:
@@ -68,19 +67,18 @@ def delete_lecturer(id: int, db: Session = Depends(get_db)):
 # --- MODULES ---
 @app.get("/modules/", response_model=List[schemas.ModuleResponse])
 def read_modules(db: Session = Depends(get_db)):
-    # Use joinedload to fetch specializations efficiently
+    # Important: Load specializations so they appear in the JSON
     return db.query(models.Module).options(joinedload(models.Module.specializations)).all()
 
 
 @app.post("/modules/", response_model=schemas.ModuleResponse)
 def create_module(m: schemas.ModuleCreate, db: Session = Depends(get_db)):
-    # Extract specialization IDs from payload
     spec_ids = m.specialization_ids
+    # Separate spec IDs from the main module data
     module_data = m.model_dump(exclude={"specialization_ids"})
 
     new_module = models.Module(**module_data)
 
-    # Link specializations
     if spec_ids:
         specs = db.query(models.Specialization).filter(models.Specialization.id.in_(spec_ids)).all()
         new_module.specializations = specs
@@ -101,7 +99,7 @@ def update_module(code: str, m: schemas.ModuleCreate, db: Session = Depends(get_
 
     for k, v in module_data.items(): setattr(row, k, v)
 
-    # Update specializations
+    # Update Many-to-Many
     specs = db.query(models.Specialization).filter(models.Specialization.id.in_(spec_ids)).all()
     row.specializations = specs
 
