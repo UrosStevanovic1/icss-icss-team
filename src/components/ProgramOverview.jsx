@@ -26,38 +26,47 @@ const styles = {
   toggleBtn: { padding: "6px 16px", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9rem", fontWeight: "600", color: "#64748b", background: "transparent", transition: "all 0.2s" },
   toggleBtnActive: { background: "white", color: "#3b82f6", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" },
 
-  // LIST LAYOUT
-  listContainer: { display: "flex", flexDirection: "column", gap: "12px" },
+  // --- LIST LAYOUT (STRICT GRID) ---
+  // Columns: Status | Name/Acronym | Location | HoSP | Start | ECTS
+  listHeader: {
+    display: "grid",
+    gridTemplateColumns: "90px 2fr 1.2fr 1.5fr 1fr 80px",
+    gap: "15px",
+    padding: "0 25px",
+    marginBottom: "8px",
+    color: "#94a3b8",
+    fontSize: "0.75rem",
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em"
+  },
 
   listCard: {
     background: "white",
     borderRadius: "8px",
-    border: "none", // Removed border for cleaner look
+    // No Border, just shadow as requested
+    border: "1px solid transparent",
     cursor: "pointer",
-    transition: "background-color 0.2s ease",
-    // Grid layout: Status (Fixed) | Name (Flexible) | Metadata (Auto)
+    transition: "background-color 0.15s ease, transform 0.1s ease",
     display: "grid",
-    gridTemplateColumns: "80px 1fr auto",
+    gridTemplateColumns: "90px 2fr 1.2fr 1.5fr 1fr 80px", // MUST MATCH listHeader
     alignItems: "center",
-    padding: "16px 25px", // Slightly more padding
-    gap: "20px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)" // Soft shadow instead of border
+    padding: "18px 25px",
+    gap: "15px",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.04)"
   },
 
-  // Hover State: Distinct background darkening
+  // Hover State
   listCardHover: {
-    backgroundColor: "#f1f5f9", // Darker gray
+    backgroundColor: "#f1f5f9", // Clearer Grey/Blue tint
+    border: "1px solid #cbd5e1"  // Subtle border appears on hover
   },
 
   // Typography
-  progTitle: { margin: 0, fontSize: "1.05rem", fontWeight: "700", color: "#1e293b", lineHeight: "1.3" },
+  progTitle: { margin: 0, fontSize: "1rem", fontWeight: "600", color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
   progSubtitle: { margin: 0, fontSize: "0.85rem", color: "#64748b", fontWeight: "500" },
-
-  // Metadata Section (Right Side)
-  metaContainer: { display: "flex", alignItems: "center", gap: "25px", fontSize: "0.9rem", color: "#475569" },
-  metaItem: { display: "flex", alignItems: "center", gap: "6px", fontWeight: "500" },
-  metaLabel: { color: "#94a3b8", fontWeight: "400", fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.05em" },
-  separator: { color: "#cbd5e1" },
+  cellText: { fontSize: "0.9rem", color: "#475569", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  labelSmall: { fontSize: "0.75rem", color: "#94a3b8", marginRight: "6px", fontWeight: "500" },
 
   // Tabs
   tabContainer: { display: "flex", gap: "20px", marginBottom: "20px", borderBottom: "2px solid #e2e8f0" },
@@ -76,7 +85,7 @@ const styles = {
   badge: { padding: "4px 0", borderRadius: "6px", fontSize: "0.75rem", fontWeight: "bold", textTransform: "uppercase", display: "block", width: "100%", textAlign: "center" },
   statusActive: { background: "#dcfce7", color: "#166534" },
   statusInactive: { background: "#f1f5f9", color: "#94a3b8" },
-  ectsBadge: { fontWeight:'bold', color:'#333', background:'#f1f5f9', padding:'6px 12px', borderRadius:'6px' },
+  ectsBadge: { fontWeight:'bold', color:'#333', background:'#f1f5f9', padding:'6px 0', borderRadius:'6px', textAlign:'center', fontSize:'0.85rem' },
 
   // Modal
   overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
@@ -150,7 +159,7 @@ export default function ProgramOverview() {
   );
 }
 
-// --- VIEW: LIST (Wide Rows with Grid) ---
+// --- VIEW: LIST (Strict Grid) ---
 function ProgramList({ programs, lecturers, onSelect, refresh }) {
   const [showCreate, setShowCreate] = useState(false);
   const [levelFilter, setLevelFilter] = useState("Bachelor");
@@ -200,52 +209,62 @@ function ProgramList({ programs, lecturers, onSelect, refresh }) {
         <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={() => setShowCreate(true)}>+ New Program</button>
       </div>
 
-      <div style={styles.listContainer}>
+      {/* HEADER ROW */}
+      <div style={styles.listHeader}>
+        <div>Status</div>
+        <div>Program Name</div>
+        <div>Location</div>
+        <div>HoSP</div>
+        <div>Start Date</div>
+        <div style={{textAlign:'center'}}>ECTS</div>
+      </div>
+
+      {/* DATA ROWS */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {filtered.map(p => (
           <div
             key={p.id}
-            style={{ ...styles.listCard, ...(hoverId === p.id ? styles.listCardHover : {}) }}
+            style={{
+                ...styles.listCard,
+                ...(hoverId === p.id ? styles.listCardHover : {})
+            }}
             onClick={() => onSelect(p)}
             onMouseEnter={() => setHoverId(p.id)}
             onMouseLeave={() => setHoverId(null)}
           >
-            {/* 1. Status Column */}
+            {/* 1. Status */}
             <div>
                 <span style={{ ...styles.badge, ...(p.status ? styles.statusActive : styles.statusInactive) }}>
                     {p.status ? "Active" : "Inactive"}
                 </span>
             </div>
 
-            {/* 2. Name Column */}
+            {/* 2. Name */}
             <div style={{minWidth: 0}}>
                 <h4 style={styles.progTitle}>{p.name}</h4>
                 <span style={styles.progSubtitle}>{p.acronym}</span>
             </div>
 
-            {/* 3. Metadata Column */}
-            <div style={styles.metaContainer}>
-                {p.location && (
-                    <div style={styles.metaItem}>
-                        <span style={styles.metaLabel}>Location:</span>
-                        {p.location}
-                    </div>
-                )}
-                <span style={styles.separator}>|</span>
-                <div style={styles.metaItem}>
-                    <span style={styles.metaLabel}>HoSP:</span>
-                    {p.head_of_program || "-"}
-                </div>
-                <span style={styles.separator}>|</span>
-                <div style={styles.metaItem}>
-                    <span style={styles.metaLabel}>Start:</span>
-                    {formatDate(p.start_date)}
-                </div>
-
-                <div style={styles.ectsBadge}>{p.total_ects} ECTS</div>
+            {/* 3. Location */}
+            <div style={styles.cellText}>
+                {p.location || "-"}
             </div>
+
+            {/* 4. HoSP */}
+            <div style={styles.cellText}>
+                {p.head_of_program || "-"}
+            </div>
+
+            {/* 5. Date */}
+            <div style={styles.cellText}>
+                {formatDate(p.start_date)}
+            </div>
+
+            {/* 6. ECTS */}
+            <div style={styles.ectsBadge}>{p.total_ects}</div>
           </div>
         ))}
-        {filtered.length === 0 && <div style={{ color: "#94a3b8", padding: "20px", textAlign: "center", fontStyle: "italic" }}>No programs found matching your search.</div>}
+        {filtered.length === 0 && <div style={{ color: "#94a3b8", padding: "40px", textAlign: "center", fontStyle: "italic" }}>No programs found matching your search.</div>}
       </div>
 
       {/* CREATE MODAL */}
