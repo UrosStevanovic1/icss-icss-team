@@ -11,27 +11,7 @@ router = APIRouter(prefix="/specializations", tags=["specializations"])
 
 @router.get("/", response_model=List[schemas.SpecializationResponse])
 def read_specializations(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user):
-    r = role_of(current_user)
-
-if is_admin_or_pm(current_user):
     return db.query(models.Specialization).all()
-
-elif r == "hosp":
-    prog_ids = hosp_program_ids(db, current_user)
-    return (
-        db.query(models.Specialization)
-        .filter(models.Specialization.program_id.in_(prog_ids))
-        .all()
-    )
-
-elif r in ["lecturer", "student"]:
-    return db.query(models.Specialization).all()
-
-else:
-    raise HTTPException(status_code=403, detail="Not allowed")
-
 
 @router.post("/", response_model=schemas.SpecializationResponse)
 def create_specialization(p: schemas.SpecializationCreate, db: Session = Depends(get_db),
