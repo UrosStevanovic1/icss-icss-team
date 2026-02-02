@@ -38,13 +38,11 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
       const data = await api.login(email, password);
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("userRole", data.role);
-
       if (data.lecturer_id !== null && data.lecturer_id !== undefined) {
         localStorage.setItem("lecturerId", String(data.lecturer_id));
       } else {
         localStorage.removeItem("lecturerId");
       }
-
       setCurrentUserRole(data.role);
       window.location.reload();
     } catch (err) {
@@ -65,6 +63,7 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
     <div className="app-container">
       <aside className="sidebar">
         <div className="sidebar-header">ICSS Scheduler</div>
+
         <div className="sidebar-nav">
           <div className="nav-section-title">Curriculum</div>
           <NavLink id="programs" label="Study Programs" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
@@ -72,8 +71,7 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
 
           <div className="nav-section-title">People & Groups</div>
           <NavLink id="lecturers" label="Lecturers" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
-
-          {/* ✅ AQUÍ ESTÁ LA CLAVE DEL LAYOUT: Todos pueden ver, incluido Student y Lecturer */}
+          {/* ✅ AQUÍ TODOS PUEDEN VER */}
           <NavLink id="groups" label="Student Groups" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
 
           <div className="nav-section-title">Facilities</div>
@@ -104,13 +102,17 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
       <main className="main-content">
         <div className="page-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h1 className="page-title">{activeTab.charAt(0).toUpperCase() + activeTab.slice(1).replace('-', ' ')}</h1>
+            <h1 className="page-title">
+              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1).replace('-', ' ')}
+            </h1>
             <span style={{ background: '#e2e8f0', color: '#475569', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
               Role: {currentUserRole}
             </span>
           </div>
         </div>
-        <div className="content-container">{children}</div>
+        <div className="content-container">
+            {children}
+        </div>
       </main>
     </div>
   );

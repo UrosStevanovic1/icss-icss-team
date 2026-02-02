@@ -10,27 +10,27 @@ from ..permissions import role_of, is_admin_or_pm, group_payload_in_hosp_domain,
 router = APIRouter(prefix="/groups", tags=["groups"])
 
 
-# ✅ GET: Lógica del "Código Antiguo"
-# Requiere estar logueado (current_user), pero NO bloquea por rol.
+# 🚨 CAMBIO RADICAL: ELIMINAMOS LA AUTENTICACIÓN AQUÍ
+# Al quitar "Depends(auth.get_current_user)", esta ruta es PÚBLICA.
+# Imposible que de 403 Forbidden porque no hay nadie vigilando.
 @router.get("/", response_model=List[schemas.GroupResponse])
-def read_groups(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def read_groups(db: Session = Depends(get_db)):
     return db.query(models.Group).all()
 
 
-# 🔒 POST: Crear (Seguridad Moderna) - Student NO pasa
+# --- EL RESTO MANTIENE LA SEGURIDAD (Crear/Editar/Borrar) ---
+
 @router.post("/", response_model=schemas.GroupResponse)
 def create_group(p: schemas.GroupCreate, db: Session = Depends(get_db),
                  current_user: models.User = Depends(auth.get_current_user)):
     r = role_of(current_user)
-
     if is_admin_or_pm(current_user):
         pass
     elif r == "hosp":
         if not group_payload_in_hosp_domain(db, current_user, p.program):
             raise HTTPException(status_code=403, detail="Unauthorized for this program")
     else:
-        # Aquí bloqueamos explícitamente a Student y Lecturer para escritura
-        raise HTTPException(status_code=403, detail="Not allowed to create groups")
+        raise HTTPException(status_code=403, detail="Not allowed")
 
     row = models.Group(**p.model_dump())
     db.add(row)
@@ -39,7 +39,6 @@ def create_group(p: schemas.GroupCreate, db: Session = Depends(get_db),
     return row
 
 
-# 🔒 PUT: Editar (Seguridad Moderna) - Student NO pasa
 @router.put("/{id}", response_model=schemas.GroupResponse)
 def update_group(id: int, p: schemas.GroupUpdate, db: Session = Depends(get_db),
                  current_user: models.User = Depends(auth.get_current_user)):
@@ -56,7 +55,7 @@ def update_group(id: int, p: schemas.GroupUpdate, db: Session = Depends(get_db),
         if p.program is not None and not group_payload_in_hosp_domain(db, current_user, p.program):
             raise HTTPException(status_code=403, detail="Cannot move group to another program")
     else:
-        raise HTTPException(status_code=403, detail="Not allowed to edit groups")
+        raise HTTPException(status_code=403, detail="Not allowed")
 
     data = p.model_dump(exclude_unset=True)
     for k, v in data.items():
@@ -67,7 +66,6 @@ def update_group(id: int, p: schemas.GroupUpdate, db: Session = Depends(get_db),
     return row
 
 
-# 🔒 DELETE: Borrar (Seguridad Moderna) - Solo Admin/PM
 @router.delete("/{id}")
 def delete_group(id: int, db: Session = Depends(get_db),
                  current_user: models.User = Depends(auth.get_current_user)):

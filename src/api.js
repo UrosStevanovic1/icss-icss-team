@@ -35,7 +35,6 @@ async function request(path, options = {}) {
       throw new Error(`${res.status} ${res.statusText} - ${text}`);
     }
   }
-
   if (!text) return null;
   try { return JSON.parse(text); } catch { return text; }
 }
@@ -43,10 +42,7 @@ async function request(path, options = {}) {
 const api = {
   // --- AUTH ---
   login(email, password) {
-    return request("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password })
-    });
+    return request("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
   },
 
   // ---------- PROGRAMS ----------
@@ -74,7 +70,6 @@ const api = {
   deleteLecturer(id) { return request(`/lecturers/${id}`, { method: "DELETE" }); },
 
   // ---------- GROUPS ----------
-  // ✅ Apuntamos a la ruta raíz normal
   getGroups() { return request("/groups/"); },
   createGroup(payload) { return request("/groups/", { method: "POST", body: JSON.stringify(payload) }); },
   updateGroup(id, payload) { return request(`/groups/${id}`, { method: "PUT", body: JSON.stringify(payload) }); },
