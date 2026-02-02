@@ -13,7 +13,7 @@ router = APIRouter(prefix="/lecturers", tags=["lecturers"])
 def read_lecturers(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     r = role_of(current_user)
 
-    if r == "hosp" or is_admin_or_pm(current_user):
+    if is_admin_or_pm(current_user) or r == "hosp":
         return db.query(models.Lecturer).all()
 
     if r == "lecturer":
@@ -21,40 +21,18 @@ def read_lecturers(db: Session = Depends(get_db), current_user: models.User = De
         lec = db.query(models.Lecturer).filter(models.Lecturer.id == lec_id).first()
         return [lec] if lec else []
 
-    raise HTTPException(status_code=403, detail="Not allowed")
+    # ✅ Mandy: Estudiantes bloqueados totalmente aquí
+    raise HTTPException(status_code=403, detail="Access denied: Students cannot view lecturers list")
 
 @router.get("/me", response_model=schemas.LecturerResponse)
 def get_my_lecturer_profile(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if role_of(current_user) != "lecturer":
-        raise HTTPException(status_code=403, detail="Not allowed")
+    if role_of(current_user) == "student":
+         raise HTTPException(status_code=403, detail="Students do not have a lecturer profile")
     lec_id = require_lecturer_link(current_user)
-    lec = db.query(models.Lecturer).filter(models.Lecturer.id == lec_id).first()
-    if not lec:
-        raise HTTPException(status_code=404, detail="Lecturer profile not found")
-    return lec
-
-@router.patch("/me", response_model=schemas.LecturerResponse)
-def update_my_lecturer_profile(p: schemas.LecturerSelfUpdate, db: Session = Depends(get_db),
-                               current_user: models.User = Depends(auth.get_current_user)):
-    if role_of(current_user) != "lecturer":
-        raise HTTPException(status_code=403, detail="Not allowed")
-    lec_id = require_lecturer_link(current_user)
-    lec = db.query(models.Lecturer).filter(models.Lecturer.id == lec_id).first()
-    if not lec:
-        raise HTTPException(status_code=404, detail="Lecturer profile not found")
-
-    data = p.model_dump(exclude_unset=True)
-    # hard filter to allowed fields only
-    for k in list(data.keys()):
-        if k not in {"personal_email", "phone"}:
-            data.pop(k, None)
-
-    for k, v in data.items():
-        setattr(lec, k, v)
-
-    db.commit()
-    db.refresh(lec)
-    return lec
+    row = db.query(models.Lecturer).filter(models.Lecturer.id == lec_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return row
 
 @router.post("/", response_model=schemas.LecturerResponse)
 def create_lecturer(p: schemas.LecturerCreate, db: Session = Depends(get_db),
@@ -69,6 +47,7 @@ def create_lecturer(p: schemas.LecturerCreate, db: Session = Depends(get_db),
 @router.put("/{id}", response_model=schemas.LecturerResponse)
 def update_lecturer(id: int, p: schemas.LecturerUpdate, db: Session = Depends(get_db),
                     current_user: models.User = Depends(auth.get_current_user)):
+    # Solo Admin/PM pueden editar a otros. Lecturers no pueden editarse aquí por seguridad (sería en /me si existiera)
     require_admin_or_pm(current_user)
     row = db.query(models.Lecturer).filter(models.Lecturer.id == id).first()
     if not row:
