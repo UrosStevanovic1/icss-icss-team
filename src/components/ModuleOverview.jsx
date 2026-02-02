@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import api from "../api";
 
-// --- STYLES (UNCHANGED DESIGN) ---
+// Toggle to avoid breaking current backend.
+// When your backend accepts these new fields, set to true.
+const ENABLE_V2_FIELDS = false;
+
+// --- STYLES ---
 const styles = {
   container: { padding: "20px", fontFamily: "'Inter', sans-serif", color: "#333", maxWidth: "1200px", margin: "0 auto" },
 
@@ -73,11 +77,9 @@ const styles = {
   actionBtn: { padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: "600" },
   editBtn: { background: "#e2e8f0", color: "#475569" },
   deleteBtn: { background: "#fee2e2", color: "#ef4444" },
-  assignBtn: { background: "#dcfce7", color: "#166534" },
 
   // Modal
   overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
-
   modal: {
     backgroundColor: "#ffffff",
     padding: "30px",
@@ -94,58 +96,50 @@ const styles = {
   input: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", boxSizing: "border-box", marginBottom: "15px" },
   select: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", background: "white", marginBottom: "15px" },
 
-  // small UI blocks
-  hint: { fontSize: "0.85rem", color: "#64748b", marginTop: "-8px", marginBottom: "12px" },
-  pill: { background: "white", border: "1px solid #e2e8f0", padding: "6px 10px", borderRadius: "999px", fontSize: "0.85rem", display: "inline-flex", gap: "8px", alignItems: "center" },
-  warn: { background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e", padding: "10px", borderRadius: "8px", fontSize: "0.9rem", marginBottom: "12px" },
-  ok: { background: "#dcfce7", border: "1px solid #86efac", color: "#166534", padding: "10px", borderRadius: "8px", fontSize: "0.9rem", marginBottom: "12px" },
+  // NEW: sections inside modal
+  sectionBox: { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "14px", marginBottom: "15px" },
+  sectionTitle: { margin: "0 0 10px 0", fontSize: "0.95rem", fontWeight: "700", color: "#334155" },
+
+  row: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" },
+  miniBtn: { padding: "8px 10px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontWeight: 600, color: "#334155" },
+  dangerMiniBtn: { padding: "8px 10px", borderRadius: "6px", border: "1px solid #fecaca", background: "#fff1f2", cursor: "pointer", fontWeight: 700, color: "#e11d48" },
+
+  tableLike: { width: "100%", borderCollapse: "collapse" },
+  trLine: { borderTop: "1px solid #e2e8f0" },
+
+  pill: { display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 10px", borderRadius: "999px", border: "1px solid #e2e8f0", background: "white", fontSize: "0.85rem", color: "#475569" },
+
+  totalOk: { background: "#ecfdf5", borderColor: "#bbf7d0", color: "#065f46" },
+  totalBad: { background: "#fff1f2", borderColor: "#fecaca", color: "#9f1239" },
+
+  helpText: { fontSize: "0.85rem", color: "#64748b", marginTop: "6px", lineHeight: 1.4 }
 };
 
 const STANDARD_ROOM_TYPES = ["Lecture Classroom", "Computer Lab", "Seminar"];
+const ASSESSMENT_TYPES = ["Written Exam", "Presentation", "Project", "Report"];
 const CATEGORY_TYPES = ["Core", "Shared", "Elective"];
 
-const ASSESSMENT_TYPES = ["Written Exam", "Presentation", "Project", "Report", "Documentation", "Oral Exam"];
-
-// UI ONLY (same as your earlier idea)
-const MOCK_LECTURERS = [
-  { id: 1, name: "Mohammed Ali" },
-  { id: 2, name: "Aastha Gurung" },
-  { id: 3, name: "Chetan Teji" },
-  { id: 4, name: "John Doe" },
+// Lecturer scope options (real-world flexible)
+const TEACH_SCOPE = [
+  { value: "ALL", label: "All occurrences (default)" },
+  { value: "SEMESTER", label: "Specific semester only" },
+  { value: "GROUP", label: "Specific group only" },
+  { value: "SEMESTER_GROUP", label: "Specific semester + group" }
 ];
 
-/**
- * Backend compatibility: we store assessment_type as a single string.
- * We encode multi assessment+weight as JSON string:
- *   [{"type":"Written Exam","weight":70},{"type":"Documentation","weight":30}]
- */
-function parseAssessmentString(value) {
-  if (!value) return [{ type: "Written Exam", weight: 100 }];
-
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed) && parsed.every(x => x && typeof x.type === "string")) {
-      return parsed.map(x => ({ type: x.type, weight: Number(x.weight ?? 0) || 0 }));
-    }
-  } catch (e) { /* ignore */ }
-
-  // fallback: if old backend stored plain string, keep it as one item
-  return [{ type: String(value), weight: 100 }];
+function safeInt(v, fallback) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : fallback;
 }
 
-function buildAssessmentString(items) {
-  const clean = (Array.isArray(items) ? items : [])
-    .map(i => ({ type: String(i.type || "").trim(), weight: Number(i.weight ?? 0) || 0 }))
-    .filter(i => i.type);
-  return JSON.stringify(clean.length ? clean : [{ type: "Written Exam", weight: 100 }]);
-}
-
-function formatAssessmentForList(value) {
-  const items = parseAssessmentString(value);
-  return items
-    .filter(i => i.type)
-    .map(i => `${i.type}${Number.isFinite(i.weight) ? ` (${i.weight}%)` : ""}`)
-    .join(", ");
+function assessmentSummaryFromDraft(draft) {
+  if (Array.isArray(draft.assessments) && draft.assessments.length > 0) {
+    return draft.assessments
+      .filter(a => a?.type)
+      .map(a => `${a.type}${Number.isFinite(parseInt(a.weight, 10)) ? ` (${parseInt(a.weight, 10)}%)` : ""}`)
+      .join(", ");
+  }
+  return draft.assessment_type || "-";
 }
 
 export default function ModuleOverview({ onNavigate }) {
@@ -153,6 +147,8 @@ export default function ModuleOverview({ onNavigate }) {
   const [programs, setPrograms] = useState([]);
   const [specializations, setSpecializations] = useState([]);
   const [customRoomTypes, setCustomRoomTypes] = useState([]);
+  const [lecturers, setLecturers] = useState([]); // ✅ from DB
+  const [groups, setGroups] = useState([]); // optional (if you have groups in DB)
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [hoverId, setHoverId] = useState(null);
@@ -161,44 +157,56 @@ export default function ModuleOverview({ onNavigate }) {
   const [formMode, setFormMode] = useState("overview");
   const [editingCode, setEditingCode] = useState(null);
   const [selectedSpecToAdd, setSelectedSpecToAdd] = useState("");
-
-  // ✅ Draft now has assessment_items instead of single assessment_type
   const [draft, setDraft] = useState({
     module_code: "",
     name: "",
-    ects: 5, // default 5 but user can type any integer
+    ects: 5, // ✅ default 5
     room_type: "Lecture Classroom",
     semester: 1,
+    // legacy single value
+    assessment_type: "Written Exam",
+    // ✅ NEW: assessment breakdown
+    assessments: [{ type: "Written Exam", weight: 100 }],
     category: "Core",
     program_id: "",
     specialization_ids: [],
-    assessment_items: [{ type: "Written Exam", weight: 100 }],
+    // ✅ NEW: flexible lecturer assignments
+    teaching_assignments: []
   });
 
   // Delete State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [moduleToDelete, setModuleToDelete] = useState(null);
 
-  // ✅ Assign Lecturer UI ONLY: per semester + multiple lecturers
-  // store in memory only: { [module_code]: [{ semester: number, lecturerIds: number[], note: string }] }
-  const [teachMap, setTeachMap] = useState({});
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [assignTarget, setAssignTarget] = useState(null);
-  const [assignSemester, setAssignSemester] = useState(1);
-  const [assignLecturerIds, setAssignLecturerIds] = useState([]);
-  const [assignNote, setAssignNote] = useState("");
-
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [modData, progData, specData, roomData] = await Promise.all([
-        api.getModules(), api.getPrograms(), api.getSpecializations(), api.getRooms()
-      ]);
+      const calls = [
+        api.getModules(),
+        api.getPrograms(),
+        api.getSpecializations(),
+        api.getRooms()
+      ];
+
+      // These may not exist yet; we handle gracefully.
+      const hasLecturersFn = typeof api.getLecturers === "function";
+      const hasGroupsFn = typeof api.getGroups === "function";
+
+      if (hasLecturersFn) calls.push(api.getLecturers());
+      else calls.push(Promise.resolve([]));
+
+      if (hasGroupsFn) calls.push(api.getGroups());
+      else calls.push(Promise.resolve([]));
+
+      const [modData, progData, specData, roomData, lecturerData, groupData] = await Promise.all(calls);
+
       setModules(Array.isArray(modData) ? modData : []);
       setPrograms(Array.isArray(progData) ? progData : []);
       setSpecializations(Array.isArray(specData) ? specData : []);
+      setLecturers(Array.isArray(lecturerData) ? lecturerData : []);
+      setGroups(Array.isArray(groupData) ? groupData : []);
 
       const existingCustom = (Array.isArray(roomData) ? roomData : [])
         .map(r => r.type)
@@ -213,7 +221,7 @@ export default function ModuleOverview({ onNavigate }) {
 
   const filteredModules = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return modules.filter(m => (m.name || "").toLowerCase().includes(q) || (m.module_code || "").toLowerCase().includes(q));
+    return modules.filter(m => (m?.name || "").toLowerCase().includes(q) || (m?.module_code || "").toLowerCase().includes(q));
   }, [modules, query]);
 
   const openAdd = () => {
@@ -225,10 +233,12 @@ export default function ModuleOverview({ onNavigate }) {
       ects: 5,
       room_type: "Lecture Classroom",
       semester: 1,
+      assessment_type: "Written Exam",
+      assessments: [{ type: "Written Exam", weight: 100 }],
       category: "Core",
       program_id: "",
       specialization_ids: [],
-      assessment_items: [{ type: "Written Exam", weight: 100 }],
+      teaching_assignments: []
     });
     setFormMode("add");
   };
@@ -236,82 +246,33 @@ export default function ModuleOverview({ onNavigate }) {
   const openEdit = (m) => {
     setEditingCode(m.module_code);
     setSelectedSpecToAdd("");
+
+    // If backend doesn't provide assessments yet, build from legacy field.
+    const inferredAssessments =
+      Array.isArray(m.assessments) && m.assessments.length > 0
+        ? m.assessments
+        : [{ type: (m.assessment_type || "Written Exam"), weight: 100 }];
+
     setDraft({
       module_code: m.module_code,
       name: m.name,
       ects: m.ects ?? 5,
-      room_type: m.room_type || "Lecture Classroom",
-      semester: m.semester ?? 1,
+      room_type: m.room_type,
+      semester: m.semester,
+      assessment_type: m.assessment_type || "Written Exam",
+      assessments: inferredAssessments.map(a => ({
+        type: a.type || "Written Exam",
+        weight: Number.isFinite(parseInt(a.weight, 10)) ? parseInt(a.weight, 10) : 0
+      })),
       category: m.category || "Core",
       program_id: m.program_id ? String(m.program_id) : "",
       specialization_ids: (m.specializations || []).map(s => s.id),
-      assessment_items: parseAssessmentString(m.assessment_type),
+
+      // If backend doesn't provide teaching assignments yet, start empty.
+      teaching_assignments: Array.isArray(m.teaching_assignments) ? m.teaching_assignments : []
     });
+
     setFormMode("edit");
-  };
-
-  // ✅ assessment helpers
-  const assessmentTotal = useMemo(() => {
-    return (draft.assessment_items || []).reduce((sum, x) => sum + (Number(x.weight ?? 0) || 0), 0);
-  }, [draft.assessment_items]);
-
-  const addAssessmentRow = () => {
-    setDraft(prev => ({
-      ...prev,
-      assessment_items: [...(prev.assessment_items || []), { type: "Report", weight: 0 }]
-    }));
-  };
-
-  const removeAssessmentRow = (idx) => {
-    setDraft(prev => {
-      const next = [...(prev.assessment_items || [])];
-      next.splice(idx, 1);
-      return { ...prev, assessment_items: next.length ? next : [{ type: "Written Exam", weight: 100 }] };
-    });
-  };
-
-  const updateAssessmentRow = (idx, patch) => {
-    setDraft(prev => {
-      const next = [...(prev.assessment_items || [])];
-      next[idx] = { ...next[idx], ...patch };
-      return { ...prev, assessment_items: next };
-    });
-  };
-
-  const save = async () => {
-    if (!draft.module_code || !draft.name) return alert("Code and Name are required");
-
-    const ectsNum = Number.parseInt(draft.ects, 10);
-    const semesterNum = Number.parseInt(draft.semester, 10);
-
-    const payload = {
-      module_code: String(draft.module_code).trim(),
-      name: String(draft.name).trim(),
-
-      // ✅ ECTS any integer (default 5)
-      ects: Number.isFinite(ectsNum) ? ectsNum : 5,
-
-      room_type: draft.room_type,
-      semester: Number.isFinite(semesterNum) ? semesterNum : 1,
-
-      // ✅ store multi-assessment weights in backend string (JSON)
-      assessment_type: buildAssessmentString(draft.assessment_items),
-
-      category: draft.category,
-      program_id: draft.program_id ? parseInt(draft.program_id, 10) : null,
-      specialization_ids: draft.specialization_ids
-    };
-
-    try {
-      if (formMode === "add") await api.createModule(payload);
-      else await api.updateModule(editingCode, payload);
-
-      await loadData();
-      setFormMode("overview");
-    } catch (e) {
-      console.error(e);
-      alert("Error saving module.");
-    }
   };
 
   const initiateDelete = (m) => {
@@ -356,67 +317,206 @@ export default function ModuleOverview({ onNavigate }) {
     return styles.catShared;
   };
 
-  // ---------- Assign lecturer (UI only) ----------
-  const openAssign = (m) => {
-    setAssignTarget(m);
-    setAssignSemester(Number(m.semester) || 1);
-    setAssignLecturerIds([]);
-    setAssignNote("");
-    setShowAssignModal(true);
+  // ---------------------------
+  // Assessments (weights sum 100)
+  // ---------------------------
+  const assessmentTotal = useMemo(() => {
+    return (draft.assessments || []).reduce((sum, a) => sum + safeInt(a.weight, 0), 0);
+  }, [draft.assessments]);
+
+  const addAssessmentRow = () => {
+    setDraft(prev => ({
+      ...prev,
+      assessments: [...(prev.assessments || []), { type: "Project", weight: 0 }]
+    }));
   };
 
-  const closeAssign = () => {
-    setShowAssignModal(false);
-    setAssignTarget(null);
-    setAssignSemester(1);
-    setAssignLecturerIds([]);
-    setAssignNote("");
+  const removeAssessmentRow = (idx) => {
+    setDraft(prev => {
+      const next = [...(prev.assessments || [])];
+      next.splice(idx, 1);
+      return { ...prev, assessments: next.length ? next : [{ type: "Written Exam", weight: 100 }] };
+    });
   };
 
-  const toggleLecturer = (id) => {
-    setAssignLecturerIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const updateAssessment = (idx, patch) => {
+    setDraft(prev => {
+      const next = [...(prev.assessments || [])];
+      next[idx] = { ...next[idx], ...patch };
+      return { ...prev, assessments: next };
+    });
   };
 
-  const saveAssign = () => {
-    if (!assignTarget) return;
-    if (!assignLecturerIds.length) return;
+  const autoDistributeAssessments = () => {
+    setDraft(prev => {
+      const list = [...(prev.assessments || [])];
+      if (list.length === 0) return prev;
 
-    const entry = {
-      semester: Number(assignSemester) || 1,
-      lecturerIds: assignLecturerIds,
-      note: assignNote || ""
+      const n = list.length;
+      const base = Math.floor(100 / n);
+      let rem = 100 - base * n;
+
+      const next = list.map((a, i) => {
+        const extra = rem > 0 ? 1 : 0;
+        if (rem > 0) rem -= 1;
+        return { ...a, weight: base + extra };
+      });
+
+      return { ...prev, assessments: next };
+    });
+  };
+
+  // ---------------------------
+  // Lecturer assignments
+  // ---------------------------
+  const addTeachingAssignment = () => {
+    setDraft(prev => ({
+      ...prev,
+      teaching_assignments: [
+        ...(prev.teaching_assignments || []),
+        {
+          lecturer_id: "",
+          scope: "ALL",
+          semester: "",
+          group_id: "",
+          note: ""
+        }
+      ]
+    }));
+  };
+
+  const removeTeachingAssignment = (idx) => {
+    setDraft(prev => {
+      const next = [...(prev.teaching_assignments || [])];
+      next.splice(idx, 1);
+      return { ...prev, teaching_assignments: next };
+    });
+  };
+
+  const updateTeachingAssignment = (idx, patch) => {
+    setDraft(prev => {
+      const next = [...(prev.teaching_assignments || [])];
+      next[idx] = { ...next[idx], ...patch };
+      return { ...prev, teaching_assignments: next };
+    });
+  };
+
+  const getLecturerLabel = (l) => {
+    if (!l) return "";
+    // support different DB field shapes
+    const name = l.name || l.full_name || `${l.first_name || ""} ${l.last_name || ""}`.trim();
+    return name || `Lecturer #${l.id}`;
+  };
+
+  const validateBeforeSave = () => {
+    if (!draft.module_code || !draft.name) {
+      alert("Code and Name are required");
+      return false;
+    }
+
+    const ects = safeInt(draft.ects, 5);
+    if (ects < 0) {
+      alert("ECTS cannot be negative.");
+      return false;
+    }
+
+    // Assessments must sum exactly to 100
+    const list = draft.assessments || [];
+    if (list.length === 0) {
+      alert("Please add at least one assessment.");
+      return false;
+    }
+    const hasEmptyType = list.some(a => !a?.type);
+    if (hasEmptyType) {
+      alert("Each assessment must have a type.");
+      return false;
+    }
+    if (assessmentTotal !== 100) {
+      alert(`Assessment weights must total exactly 100%. Current total: ${assessmentTotal}%`);
+      return false;
+    }
+
+    // Teaching assignments minimal validation
+    const ta = draft.teaching_assignments || [];
+    const hasLecturerMissing = ta.some(a => a && !a.lecturer_id);
+    if (hasLecturerMissing) {
+      alert("Each teaching assignment must have a lecturer selected (or remove the row).");
+      return false;
+    }
+
+    // Scope-specific checks
+    const badScope = ta.some(a => {
+      if (!a) return false;
+      if (a.scope === "SEMESTER" && !a.semester) return true;
+      if (a.scope === "GROUP" && !a.group_id) return true;
+      if (a.scope === "SEMESTER_GROUP" && (!a.semester || !a.group_id)) return true;
+      return false;
+    });
+    if (badScope) {
+      alert("For lecturer assignments: Semester/Group fields must match the chosen Scope.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const save = async () => {
+    if (!validateBeforeSave()) return;
+
+    // Legacy payload (safe for current backend)
+    const payload = {
+      module_code: draft.module_code,
+      name: draft.name,
+      ects: safeInt(draft.ects, 5),
+      room_type: draft.room_type,
+      semester: safeInt(draft.semester, 1),
+
+      // keep existing backend field:
+      assessment_type: (draft.assessments?.[0]?.type || draft.assessment_type || "Written Exam"),
+
+      category: draft.category,
+      program_id: draft.program_id ? safeInt(draft.program_id, null) : null,
+      specialization_ids: draft.specialization_ids
     };
 
-    setTeachMap(prev => {
-      const current = prev[assignTarget.module_code] || [];
-      return { ...prev, [assignTarget.module_code]: [...current, entry] };
-    });
+    // V2 fields (enable later when backend is ready)
+    if (ENABLE_V2_FIELDS) {
+      payload.assessment_breakdown = (draft.assessments || []).map(a => ({
+        type: a.type,
+        weight: safeInt(a.weight, 0)
+      }));
 
-    closeAssign();
-  };
+      payload.teaching_assignments = (draft.teaching_assignments || []).map(a => ({
+        lecturer_id: safeInt(a.lecturer_id, null),
+        scope: a.scope,
+        semester: a.semester ? safeInt(a.semester, null) : null,
+        group_id: a.group_id ? safeInt(a.group_id, null) : null,
+        note: a.note || null
+      }));
+    }
 
-  const removeAssignEntry = (moduleCode, index) => {
-    setTeachMap(prev => {
-      const current = prev[moduleCode] || [];
-      const next = [...current];
-      next.splice(index, 1);
-      return { ...prev, [moduleCode]: next };
-    });
-  };
+    try {
+      if (formMode === "add") await api.createModule(payload);
+      else await api.updateModule(editingCode, payload);
 
-  const getTeachingLabel = (moduleCode) => {
-    const entries = teachMap[moduleCode] || [];
-    if (!entries.length) return "Unassigned";
-    // show last assignment semester + count lecturers
-    const last = entries[entries.length - 1];
-    return `Sem ${last.semester}: ${last.lecturerIds.length} lecturer(s)`;
+      await loadData();
+      setFormMode("overview");
+    } catch (e) {
+      console.error(e);
+      alert("Error saving module.");
+    }
   };
 
   return (
     <div style={styles.container}>
       {/* Controls */}
       <div style={styles.controlsBar}>
-        <input style={styles.searchBar} placeholder="Search modules..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input
+          style={styles.searchBar}
+          placeholder="Search modules..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={openAdd}>+ New Module</button>
       </div>
 
@@ -471,20 +571,12 @@ export default function ModuleOverview({ onNavigate }) {
 
                 <div style={{ ...styles.centeredCell, fontWeight: 'bold', color: '#475569' }}>{m.ects}</div>
 
-                {/* ✅ show multi-assessment readable */}
-                <div style={styles.cellText}>{formatAssessmentForList(m.assessment_type) || "-"}</div>
+                {/* list uses legacy for now */}
+                <div style={styles.cellText}>{m.assessment_type || "-"}</div>
 
                 <div style={styles.cellText}>{m.room_type}</div>
 
                 <div style={styles.actionContainer}>
-                  {/* ✅ Assign lecturer UI button */}
-                  <button
-                    style={{ ...styles.actionBtn, ...styles.assignBtn }}
-                    onClick={(e) => { e.stopPropagation(); openAssign(m); }}
-                    title={getTeachingLabel(m.module_code)}
-                  >
-                    Assign
-                  </button>
                   <button style={{ ...styles.actionBtn, ...styles.editBtn }} onClick={() => openEdit(m)}>Edit</button>
                   <button style={{ ...styles.actionBtn, ...styles.deleteBtn }} onClick={() => initiateDelete(m)}>Del</button>
                 </div>
@@ -499,13 +591,18 @@ export default function ModuleOverview({ onNavigate }) {
         )}
       </div>
 
-      {/* MODAL (Create/Edit) */}
+      {/* MODAL */}
       {(formMode === "add" || formMode === "edit") && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
               <h3 style={{ margin: 0 }}>{formMode === "add" ? "Create Module" : "Edit Module"}</h3>
-              <button onClick={() => setFormMode("overview")} style={{ border: 'none', background: 'transparent', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+              <button
+                onClick={() => setFormMode("overview")}
+                style={{ border: 'none', background: 'transparent', fontSize: '1.5rem', cursor: 'pointer' }}
+              >
+                ×
+              </button>
             </div>
 
             <div style={{ display: 'flex', gap: '15px' }}>
@@ -521,12 +618,16 @@ export default function ModuleOverview({ onNavigate }) {
               </div>
               <div style={{ ...styles.formGroup, flex: 2 }}>
                 <label style={styles.label}>Name</label>
-                <input style={styles.input} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                <input
+                  style={styles.input}
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                />
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: '15px' }}>
-              {/* ✅ ECTS customizable integer (default 5) */}
+              {/* ✅ ECTS: default 5 but changeable */}
               <div style={{ ...styles.formGroup, flex: 1 }}>
                 <label style={styles.label}>ECTS</label>
                 <input
@@ -538,17 +639,27 @@ export default function ModuleOverview({ onNavigate }) {
                   step="1"
                   placeholder="5"
                 />
-                <div style={styles.hint}>Default is 5, but you can type any number.</div>
               </div>
 
               <div style={{ ...styles.formGroup, flex: 1 }}>
                 <label style={styles.label}>Semester</label>
-                <input type="number" style={styles.input} value={draft.semester} onChange={(e) => setDraft({ ...draft, semester: e.target.value })} />
+                <input
+                  type="number"
+                  style={styles.input}
+                  value={draft.semester}
+                  onChange={(e) => setDraft({ ...draft, semester: e.target.value })}
+                  min="1"
+                  step="1"
+                />
               </div>
 
               <div style={{ ...styles.formGroup, flex: 1 }}>
                 <label style={styles.label}>Category</label>
-                <select style={styles.select} value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })}>
+                <select
+                  style={styles.select}
+                  value={draft.category}
+                  onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+                >
                   {CATEGORY_TYPES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -557,62 +668,103 @@ export default function ModuleOverview({ onNavigate }) {
             <div style={{ display: 'flex', gap: '15px' }}>
               <div style={{ ...styles.formGroup, flex: 1 }}>
                 <label style={styles.label}>Room Type</label>
-                <select style={styles.select} value={draft.room_type} onChange={(e) => setDraft({ ...draft, room_type: e.target.value })}>
-                  <optgroup label="Standard">{STANDARD_ROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</optgroup>
+                <select
+                  style={styles.select}
+                  value={draft.room_type}
+                  onChange={(e) => setDraft({ ...draft, room_type: e.target.value })}
+                >
+                  <optgroup label="Standard">
+                    {STANDARD_ROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </optgroup>
                   {customRoomTypes.length > 0 && (
-                    <optgroup label="Custom">{customRoomTypes.map(t => <option key={t} value={t}>{t}</option>)}</optgroup>
+                    <optgroup label="Custom">
+                      {customRoomTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    </optgroup>
                   )}
                 </select>
               </div>
 
-              {/* ✅ Assessment multi + weight */}
+              {/* Legacy single assessment hidden by UI now; we show new section below */}
               <div style={{ ...styles.formGroup, flex: 1 }}>
-                <label style={styles.label}>Assessment (multiple + weight %)</label>
+                <label style={styles.label}>Assessment (summary)</label>
+                <input
+                  style={styles.input}
+                  value={assessmentSummaryFromDraft(draft)}
+                  readOnly
+                />
+              </div>
+            </div>
 
-                {assessmentTotal === 100 ? (
-                  <div style={styles.ok}>Total weight: <strong>{assessmentTotal}%</strong></div>
-                ) : (
-                  <div style={styles.warn}>Total weight: <strong>{assessmentTotal}%</strong> (should be 100%)</div>
-                )}
+            {/* ✅ NEW: Assessment breakdown */}
+            <div style={styles.sectionBox}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
+                <h4 style={styles.sectionTitle}>Assessment breakdown</h4>
 
-                {(draft.assessment_items || []).map((item, idx) => (
-                  <div key={idx} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                    <select
-                      style={{ ...styles.select, marginBottom: "10px" }}
-                      value={item.type}
-                      onChange={(e) => updateAssessmentRow(idx, { type: e.target.value })}
-                    >
-                      {ASSESSMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <span
+                    style={{
+                      ...styles.pill,
+                      ...(assessmentTotal === 100 ? styles.totalOk : styles.totalBad)
+                    }}
+                    title="Must be exactly 100%"
+                  >
+                    Total: <strong>{assessmentTotal}%</strong>
+                    {assessmentTotal === 100 ? " ✅" : " ⚠️"}
+                  </span>
 
-                    <input
-                      type="number"
-                      style={{ ...styles.input, marginBottom: "10px" }}
-                      value={item.weight}
-                      min="0"
-                      step="1"
-                      placeholder="%"
-                      onChange={(e) => updateAssessmentRow(idx, { weight: e.target.value })}
-                    />
+                  <button type="button" style={styles.miniBtn} onClick={autoDistributeAssessments}>
+                    Auto-distribute
+                  </button>
 
-                    <button
-                      type="button"
-                      style={{ ...styles.actionBtn, ...styles.deleteBtn, height: "38px", marginBottom: "10px" }}
-                      onClick={() => removeAssessmentRow(idx)}
-                      title="Remove assessment"
-                    >
-                      ×
-                    </button>
+                  <button type="button" style={{ ...styles.miniBtn, borderColor: "#bfdbfe" }} onClick={addAssessmentRow}>
+                    + Add assessment
+                  </button>
+                </div>
+              </div>
+
+              <div style={styles.helpText}>
+                Add one or more assessment types and set their weights. The total must be <strong>exactly 100%</strong>.
+              </div>
+
+              <div style={{ marginTop: "12px" }}>
+                {(draft.assessments || []).map((a, idx) => (
+                  <div key={idx} style={{ ...styles.row, padding: "10px 0", ...(idx > 0 ? styles.trLine : {}) }}>
+                    <div style={{ flex: 2, minWidth: "220px" }}>
+                      <label style={styles.label}>Type</label>
+                      <select
+                        style={{ ...styles.select, marginBottom: 0 }}
+                        value={a.type}
+                        onChange={(e) => updateAssessment(idx, { type: e.target.value })}
+                      >
+                        {ASSESSMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: "140px" }}>
+                      <label style={styles.label}>Weight (%)</label>
+                      <input
+                        type="number"
+                        style={{ ...styles.input, marginBottom: 0 }}
+                        value={a.weight}
+                        onChange={(e) => updateAssessment(idx, { weight: e.target.value })}
+                        min="0"
+                        max="100"
+                        step="1"
+                      />
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "end", paddingBottom: "1px" }}>
+                      <button
+                        type="button"
+                        style={styles.dangerMiniBtn}
+                        onClick={() => removeAssessmentRow(idx)}
+                        title="Remove assessment"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 ))}
-
-                <button
-                  type="button"
-                  style={{ ...styles.btn, ...styles.primaryBtn, width: "100%", marginTop: "5px" }}
-                  onClick={addAssessmentRow}
-                >
-                  + Add Assessment Part
-                </button>
               </div>
             </div>
 
@@ -620,20 +772,152 @@ export default function ModuleOverview({ onNavigate }) {
 
             <div style={styles.formGroup}>
               <label style={styles.label}>Study Program (Owner)</label>
-              <select style={styles.select} value={draft.program_id} onChange={(e) => setDraft({ ...draft, program_id: e.target.value })}>
+              <select
+                style={styles.select}
+                value={draft.program_id}
+                onChange={(e) => setDraft({ ...draft, program_id: e.target.value })}
+              >
                 <option value="">-- None / Global Module --</option>
                 {programs.map(p => (<option key={p.id} value={p.id}>{p.name} ({p.level})</option>))}
               </select>
             </div>
 
+            {/* ✅ NEW: Lecturer assignments */}
+            <div style={styles.sectionBox}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
+                <h4 style={styles.sectionTitle}>Teaching assignments</h4>
+                <button type="button" style={{ ...styles.miniBtn, borderColor: "#bfdbfe" }} onClick={addTeachingAssignment}>
+                  + Add lecturer
+                </button>
+              </div>
+
+              <div style={styles.helpText}>
+                Supports real-life cases: multiple lecturers per module, per semester, per group, or both.
+                You can add as many assignments as needed.
+              </div>
+
+              {(draft.teaching_assignments || []).length === 0 ? (
+                <div style={{ marginTop: "10px", fontStyle: "italic", color: "#94a3b8" }}>
+                  No teaching assignments yet.
+                </div>
+              ) : (
+                <div style={{ marginTop: "12px" }}>
+                  {(draft.teaching_assignments || []).map((ta, idx) => {
+                    const showSemester = ta.scope === "SEMESTER" || ta.scope === "SEMESTER_GROUP";
+                    const showGroup = ta.scope === "GROUP" || ta.scope === "SEMESTER_GROUP";
+
+                    return (
+                      <div key={idx} style={{ padding: "10px 0", ...(idx > 0 ? styles.trLine : {}) }}>
+                        <div style={styles.row}>
+                          <div style={{ flex: 2, minWidth: "240px" }}>
+                            <label style={styles.label}>Lecturer</label>
+                            <select
+                              style={{ ...styles.select, marginBottom: 0 }}
+                              value={ta.lecturer_id}
+                              onChange={(e) => updateTeachingAssignment(idx, { lecturer_id: e.target.value })}
+                            >
+                              <option value="">-- Select lecturer --</option>
+                              {lecturers.map(l => (
+                                <option key={l.id} value={l.id}>
+                                  {getLecturerLabel(l)}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div style={{ flex: 2, minWidth: "220px" }}>
+                            <label style={styles.label}>Scope</label>
+                            <select
+                              style={{ ...styles.select, marginBottom: 0 }}
+                              value={ta.scope}
+                              onChange={(e) => updateTeachingAssignment(idx, { scope: e.target.value, semester: "", group_id: "" })}
+                            >
+                              {TEACH_SCOPE.map(s => (
+                                <option key={s.value} value={s.value}>{s.label}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "end", paddingBottom: "1px" }}>
+                            <button type="button" style={styles.dangerMiniBtn} onClick={() => removeTeachingAssignment(idx)}>
+                              ×
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ ...styles.row, marginTop: "10px" }}>
+                          {showSemester && (
+                            <div style={{ flex: 1, minWidth: "160px" }}>
+                              <label style={styles.label}>Semester</label>
+                              <input
+                                type="number"
+                                style={{ ...styles.input, marginBottom: 0 }}
+                                value={ta.semester}
+                                onChange={(e) => updateTeachingAssignment(idx, { semester: e.target.value })}
+                                min="1"
+                                step="1"
+                                placeholder="e.g. 3"
+                              />
+                            </div>
+                          )}
+
+                          {showGroup && (
+                            <div style={{ flex: 2, minWidth: "240px" }}>
+                              <label style={styles.label}>Group</label>
+                              <select
+                                style={{ ...styles.select, marginBottom: 0 }}
+                                value={ta.group_id}
+                                onChange={(e) => updateTeachingAssignment(idx, { group_id: e.target.value })}
+                              >
+                                <option value="">-- Select group --</option>
+                                {groups.map(g => (
+                                  <option key={g.id} value={g.id}>
+                                    {g.name || g.group_name || `Group #${g.id}`}
+                                  </option>
+                                ))}
+                              </select>
+                              {groups.length === 0 && (
+                                <div style={styles.helpText}>
+                                  (No groups loaded. If you don’t have groups endpoint yet, it’s fine — we’ll add it later.)
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div style={{ flex: 3, minWidth: "240px" }}>
+                            <label style={styles.label}>Note (optional)</label>
+                            <input
+                              style={{ ...styles.input, marginBottom: 0 }}
+                              value={ta.note || ""}
+                              onChange={(e) => updateTeachingAssignment(idx, { note: e.target.value })}
+                              placeholder="e.g. teaches lab sessions / guest lecturer / group A only..."
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Existing: Linked specializations */}
             <div style={{ ...styles.formGroup, background: '#f9f9f9', padding: '15px', borderRadius: '6px', border: '1px solid #eee' }}>
               <label style={{ ...styles.label, marginBottom: '10px' }}>Linked Specializations</label>
               <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                <select style={styles.select} value={selectedSpecToAdd} onChange={(e) => setSelectedSpecToAdd(e.target.value)}>
+                <select
+                  style={styles.select}
+                  value={selectedSpecToAdd}
+                  onChange={(e) => setSelectedSpecToAdd(e.target.value)}
+                >
                   <option value="">-- Select Specialization --</option>
-                  {specializations.filter(s => !draft.specialization_ids.includes(s.id)).map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.acronym})</option>
-                  ))}
+                  {specializations
+                    .filter(s => !draft.specialization_ids.includes(s.id))
+                    .map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.acronym})
+                      </option>
+                    ))}
                 </select>
                 <button type="button" style={{ ...styles.btn, ...styles.primaryBtn }} onClick={linkSpecToDraft}>Link</button>
               </div>
@@ -643,9 +927,26 @@ export default function ModuleOverview({ onNavigate }) {
                   const spec = specializations.find(s => s.id === specId);
                   if (!spec) return null;
                   return (
-                    <div key={spec.id} style={{ background: 'white', border: '1px solid #ddd', padding: '4px 10px', borderRadius: '15px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div
+                      key={spec.id}
+                      style={{
+                        background: 'white',
+                        border: '1px solid #ddd',
+                        padding: '4px 10px',
+                        borderRadius: '15px',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
                       <span>{spec.name} ({spec.acronym})</span>
-                      <button onClick={() => unlinkSpecFromDraft(spec.id)} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontWeight: 'bold' }}>×</button>
+                      <button
+                        onClick={() => unlinkSpecFromDraft(spec.id)}
+                        style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontWeight: 'bold' }}
+                      >
+                        ×
+                      </button>
                     </div>
                   );
                 })}
@@ -657,111 +958,6 @@ export default function ModuleOverview({ onNavigate }) {
               <button style={{ ...styles.btn, background: '#f8f9fa', border: '1px solid #ddd' }} onClick={() => setFormMode("overview")}>Cancel</button>
               <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={save}>Save</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ASSIGN LECTURER MODAL (UI ONLY) */}
-      {showAssignModal && assignTarget && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
-              <h3 style={{ margin: 0 }}>Assign Lecturer(s)</h3>
-              <button onClick={closeAssign} style={{ border: 'none', background: 'transparent', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Module</label>
-              <div style={styles.pill}>
-                <strong style={{ color: "#1e293b" }}>{assignTarget.module_code}</strong>
-                <span style={{ color: "#64748b" }}>{assignTarget.name}</span>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: "15px" }}>
-              <div style={{ ...styles.formGroup, flex: 1 }}>
-                <label style={styles.label}>Semester (teaching)</label>
-                <input
-                  type="number"
-                  style={styles.input}
-                  value={assignSemester}
-                  onChange={(e) => setAssignSemester(e.target.value)}
-                  min="1"
-                  step="1"
-                />
-                <div style={styles.hint}>This lets you assign different lecturers per semester.</div>
-              </div>
-              <div style={{ ...styles.formGroup, flex: 2 }}>
-                <label style={styles.label}>Note (optional)</label>
-                <input
-                  style={styles.input}
-                  value={assignNote}
-                  onChange={(e) => setAssignNote(e.target.value)}
-                  placeholder="e.g. Group A / Group B split"
-                />
-              </div>
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Select Lecturer(s)</label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-                {MOCK_LECTURERS.map(l => {
-                  const checked = assignLecturerIds.includes(l.id);
-                  return (
-                    <label key={l.id} style={{ ...styles.pill, cursor: "pointer", userSelect: "none" }}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleLecturer(l.id)}
-                      />
-                      {l.name}
-                    </label>
-                  );
-                })}
-              </div>
-              <div style={styles.hint}>UI-only: stored in frontend state. (No backend call.)</div>
-            </div>
-
-            <div style={{ marginTop: "10px", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-              <button style={{ ...styles.btn, background: "#e5e7eb", color: "#374151" }} onClick={closeAssign}>Cancel</button>
-              <button
-                style={{ ...styles.btn, ...styles.primaryBtn, opacity: assignLecturerIds.length ? 1 : 0.6 }}
-                disabled={!assignLecturerIds.length}
-                onClick={saveAssign}
-              >
-                Save Assignment
-              </button>
-            </div>
-
-            {/* Show existing assignments for that module */}
-            <hr style={{ margin: '20px 0', border: '0', borderTop: '1px solid #eee' }} />
-            <h4 style={{ margin: "0 0 10px 0", color: "#334155" }}>Existing Assignments (UI only)</h4>
-
-            {(teachMap[assignTarget.module_code] || []).length === 0 ? (
-              <div style={{ fontStyle: "italic", color: "#94a3b8" }}>No assignments yet.</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {(teachMap[assignTarget.module_code] || []).map((a, idx) => (
-                  <div key={idx} style={{ border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px", background: "#f8fafc" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
-                      <div>
-                        <div style={{ fontWeight: 700, color: "#0f172a" }}>Semester {a.semester}</div>
-                        <div style={{ color: "#64748b", marginTop: 2 }}>
-                          {(a.lecturerIds || []).map(id => MOCK_LECTURERS.find(x => x.id === id)?.name).filter(Boolean).join(", ")}
-                        </div>
-                        {a.note ? <div style={{ marginTop: 6, color: "#475569" }}>Note: {a.note}</div> : null}
-                      </div>
-                      <button
-                        style={{ ...styles.actionBtn, ...styles.deleteBtn }}
-                        onClick={() => removeAssignEntry(assignTarget.module_code, idx)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}
