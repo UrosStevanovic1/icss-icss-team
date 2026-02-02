@@ -1,7 +1,7 @@
-# api/routers/modules.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
-from typing import List
+from typing import List, Optional, Any
+import json
 
 from ..database import get_db
 from .. import models, schemas, auth
@@ -9,14 +9,132 @@ from ..permissions import role_of, is_admin_or_pm, hosp_program_ids
 
 router = APIRouter(prefix="/modules", tags=["modules"])
 
+
+# ---------------------------
+# Helpers: JSON in assessment_type
+# ---------------------------
+
+def _safe_json_load(s: Optional[str]) -> Optional[Any]:
+    if not s or not isinstance(s, str):
+        return None
+    s = s.strip()
+    if not s:
+        return None
+    try:
+        return json.loads(s)
+    except Exception:
+        return None
+
+def _parse_module_payload(assessment_type_value: Optional[str]) -> dict:
+    """
+    assessment_type column may contain:
+    - legacy string: "Written Exam"
+    - json list: [{"type":"Written Exam","weight":70}, ...]
+    - json dict: {"assessments":[...], "lecturer_assignments":[...]}
+    """
+    parsed = _safe_json_load(assessment_type_value)
+
+    if isinstance(parsed, list):
+        # old-ish style list
+        return {"assessments": parsed, "lecturer_assignments": []}
+
+    if isinstance(parsed, dict):
+        return {
+            "assessments": parsed.get("assessments") or [],
+            "lecturer_assignments": parsed.get("lecturer_assignments") or []
+        }
+
+    # legacy string
+    if assessment_type_value and isinstance(assessment_type_value, str):
+        return {"assessments": [], "lecturer_assignments": [], "legacy": assessment_type_value}
+
+    return {"assessments": [], "lecturer_assignments": []}
+
+def _validate_assessments(breakdown: List[schemas.AssessmentPart]):
+    if len(breakdown) == 0:
+        return
+
+    total = sum(int(x.weight) for x in breakdown)
+    if total != 100:
+        raise HTTPException(status_code=400, detail=f"Assessment weights must sum to 100 (got {total}).")
+
+    # Optional: block duplicates
+    seen = set()
+    for x in breakdown:
+        t = (x.type or "").strip()
+        if not t:
+            raise HTTPException(status_code=400, detail="Assessment type cannot be empty.")
+        if t.lower() in seen:
+            raise HTTPException(status_code=400, detail=f"Duplicate assessment type: {x.type}")
+        seen.add(t.lower())
+
+def _validate_assignments(db: Session, assignments: List[schemas.LecturerAssignment]):
+    """
+    Validate lecturer_id and group_id exist (if provided).
+    """
+    if not assignments:
+        return
+
+    lecturer_ids = {a.lecturer_id for a in assignments}
+    existing_lecturers = set(
+        x[0] for x in db.query(models.Lecturer.id).filter(models.Lecturer.id.in_(lecturer_ids)).all()
+    )
+    missing = lecturer_ids - existing_lecturers
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Unknown lecturer_id(s): {sorted(list(missing))}")
+
+    group_ids = {a.group_id for a in assignments if a.group_id is not None}
+    if group_ids:
+        existing_groups = set(
+            x[0] for x in db.query(models.Group.id).filter(models.Group.id.in_(group_ids)).all()
+        )
+        missing_g = group_ids - existing_groups
+        if missing_g:
+            raise HTTPException(status_code=400, detail=f"Unknown group_id(s): {sorted(list(missing_g))}")
+
+def _make_response(row: models.Module) -> schemas.ModuleResponse:
+    payload = _parse_module_payload(row.assessment_type)
+    assessments = payload.get("assessments") or []
+    assignments = payload.get("lecturer_assignments") or []
+
+    # If legacy string exists, keep it in assessment_type as-is.
+    legacy = payload.get("legacy")
+    assessment_type_out = legacy if legacy else row.assessment_type
+
+    return schemas.ModuleResponse(
+        module_code=row.module_code,
+        name=row.name,
+        ects=row.ects,
+        room_type=row.room_type,
+        assessment_type=assessment_type_out,
+        semester=row.semester,
+        category=row.category,
+        program_id=row.program_id,
+        specializations=row.specializations or [],
+        assessment_breakdown=assessments,
+        lecturer_assignments=assignments
+    )
+
+
 @router.get("/", response_model=List[schemas.ModuleResponse])
-def read_modules(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    # NOTE: "view specific" for lecturer/student needs assignment/enrollment tables (not in your DB yet).
-    return db.query(models.Module).options(joinedload(models.Module.specializations)).all()
+def read_modules(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    rows = (
+        db.query(models.Module)
+        .options(joinedload(models.Module.specializations))
+        .all()
+    )
+    return [_make_response(r) for r in rows]
+
 
 @router.post("/", response_model=schemas.ModuleResponse)
-def create_module(p: schemas.ModuleCreate, db: Session = Depends(get_db),
-                  current_user: models.User = Depends(auth.get_current_user)):
+def create_module(
+    p: schemas.ModuleCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
     r = role_of(current_user)
     if is_admin_or_pm(current_user):
         pass
@@ -28,20 +146,58 @@ def create_module(p: schemas.ModuleCreate, db: Session = Depends(get_db),
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    row = models.Module(**{k: v for k, v in p.model_dump().items() if k != "specialization_ids"})
-    if p.specialization_ids:
-        specs = db.query(models.Specialization).filter(models.Specialization.id.in_(p.specialization_ids)).all()
+    data = p.model_dump()
+
+    spec_ids = data.pop("specialization_ids", None)
+    assessment_breakdown = data.pop("assessment_breakdown", None)
+    lecturer_assignments = data.pop("lecturer_assignments", None)
+
+    # ✅ Validate assessments
+    if assessment_breakdown is not None:
+        _validate_assessments([schemas.AssessmentPart(**x) if isinstance(x, dict) else x for x in assessment_breakdown])
+
+    # ✅ Validate lecturer assignments
+    if lecturer_assignments is not None:
+        _validate_assignments(
+            db,
+            [schemas.LecturerAssignment(**x) if isinstance(x, dict) else x for x in lecturer_assignments]
+        )
+
+    # ✅ Store JSON payload inside assessment_type (only if using new features)
+    if assessment_breakdown is not None or lecturer_assignments is not None:
+        payload = {
+            "assessments": assessment_breakdown or [],
+            "lecturer_assignments": lecturer_assignments or []
+        }
+        data["assessment_type"] = json.dumps(payload)
+
+    row = models.Module(**data)
+
+    if spec_ids:
+        specs = db.query(models.Specialization).filter(models.Specialization.id.in_(spec_ids)).all()
         row.specializations = specs
 
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+
+    # ensure specializations loaded
+    row = (
+        db.query(models.Module)
+        .filter(models.Module.module_code == row.module_code)
+        .options(joinedload(models.Module.specializations))
+        .first()
+    )
+    return _make_response(row)
 
 
 @router.put("/{module_code}", response_model=schemas.ModuleResponse)
-def update_module(module_code: str, p: schemas.ModuleUpdate, db: Session = Depends(get_db),
-                  current_user: models.User = Depends(auth.get_current_user)):
+def update_module(
+    module_code: str,
+    p: schemas.ModuleUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
     row = (
         db.query(models.Module)
         .filter(models.Module.module_code == module_code)
@@ -64,22 +220,51 @@ def update_module(module_code: str, p: schemas.ModuleUpdate, db: Session = Depen
 
     data = p.model_dump(exclude_unset=True)
 
+    # specializations update
     if "specialization_ids" in data:
         spec_ids = data.pop("specialization_ids")
         if spec_ids is not None:
             specs = db.query(models.Specialization).filter(models.Specialization.id.in_(spec_ids)).all()
             row.specializations = specs
 
+    # new fields
+    assessment_breakdown = data.pop("assessment_breakdown", None)
+    lecturer_assignments = data.pop("lecturer_assignments", None)
+
+    if assessment_breakdown is not None:
+        _validate_assessments([schemas.AssessmentPart(**x) if isinstance(x, dict) else x for x in assessment_breakdown])
+
+    if lecturer_assignments is not None:
+        _validate_assignments(
+            db,
+            [schemas.LecturerAssignment(**x) if isinstance(x, dict) else x for x in lecturer_assignments]
+        )
+
+    # If any of the new structures are provided, merge with what's already stored
+    if assessment_breakdown is not None or lecturer_assignments is not None:
+        existing = _parse_module_payload(row.assessment_type)
+
+        merged_payload = {
+            "assessments": assessment_breakdown if assessment_breakdown is not None else (existing.get("assessments") or []),
+            "lecturer_assignments": lecturer_assignments if lecturer_assignments is not None else (existing.get("lecturer_assignments") or [])
+        }
+        row.assessment_type = json.dumps(merged_payload)
+
+    # regular fields update
     for k, v in data.items():
         setattr(row, k, v)
 
     db.commit()
     db.refresh(row)
-    return row
+    return _make_response(row)
+
 
 @router.delete("/{module_code}")
-def delete_module(module_code: str, db: Session = Depends(get_db),
-                  current_user: models.User = Depends(auth.get_current_user)):
+def delete_module(
+    module_code: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
     row = db.query(models.Module).filter(models.Module.module_code == module_code).first()
     if not row:
         return {"ok": True}
