@@ -10,15 +10,15 @@ from ..permissions import role_of, is_admin_or_pm, group_payload_in_hosp_domain,
 router = APIRouter(prefix="/groups", tags=["groups"])
 
 
-# 🚨 CAMBIO RADICAL: ELIMINAMOS LA AUTENTICACIÓN AQUÍ
-# Al quitar "Depends(auth.get_current_user)", esta ruta es PÚBLICA.
-# Imposible que de 403 Forbidden porque no hay nadie vigilando.
+# 🚨 CAMBIO IMPORTANTE:
+# He quitado la parte que decía "current_user: models.User = Depends(...)"
+# Ahora el backend NO comprueba quién eres. Solo entrega los datos.
 @router.get("/", response_model=List[schemas.GroupResponse])
 def read_groups(db: Session = Depends(get_db)):
     return db.query(models.Group).all()
 
 
-# --- EL RESTO MANTIENE LA SEGURIDAD (Crear/Editar/Borrar) ---
+# --- El resto sigue con seguridad para que no rompan nada ---
 
 @router.post("/", response_model=schemas.GroupResponse)
 def create_group(p: schemas.GroupCreate, db: Session = Depends(get_db),

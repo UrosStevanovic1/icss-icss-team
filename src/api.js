@@ -35,6 +35,7 @@ async function request(path, options = {}) {
       throw new Error(`${res.status} ${res.statusText} - ${text}`);
     }
   }
+
   if (!text) return null;
   try { return JSON.parse(text); } catch { return text; }
 }
