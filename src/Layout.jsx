@@ -5,7 +5,9 @@ import "./App.css";
 const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrentUserRole }) => {
   const role = (currentUserRole || "").toLowerCase();
 
+  // Componente de link que valida roles
   const NavLink = ({ id, icon, label, rolesAllowed = [] }) => {
+    // Si hay roles permitidos definidos y el rol actual no está, no renderiza nada
     if (rolesAllowed.length > 0 && !rolesAllowed.includes(role)) {
       return null;
     }
@@ -38,11 +40,13 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
       const data = await api.login(email, password);
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("userRole", data.role);
-      if (data.lecturer_id != null) {
+
+      if (data.lecturer_id !== null && data.lecturer_id !== undefined) {
         localStorage.setItem("lecturerId", String(data.lecturer_id));
       } else {
         localStorage.removeItem("lecturerId");
       }
+
       setCurrentUserRole(data.role);
       window.location.reload();
     } catch (err) {
@@ -70,7 +74,9 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
 
           <div className="nav-section-title">People & Groups</div>
           <NavLink id="lecturers" label="Lecturers" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
-          <NavLink id="groups" label="Student Groups" rolesAllowed={["admin", "pm", "hosp", "student"]} />
+
+          {/* ✅ CORREGIDO: Añadido "lecturer" aquí para que aparezca en el menú */}
+          <NavLink id="groups" label="Student Groups" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
 
           <div className="nav-section-title">Facilities</div>
           <NavLink id="rooms" label="Rooms" rolesAllowed={["admin", "pm", "hosp"]} />
