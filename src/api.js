@@ -1,3 +1,4 @@
+// src/api.js
 const API_URL = process.env.NODE_ENV === 'production'
   ? "/api"
   : "http://127.0.0.1:8000";
@@ -77,7 +78,8 @@ const api = {
   deleteLecturer(id) { return request(`/lecturers/${id}`, { method: "DELETE" }); },
 
   // ---------- GROUPS ----------
-  getGroups() { return request("/groups/"); },
+  // 🔴 CAMBIO IMPORTANTE: Apuntamos a /list para esquivar el caché y el bloqueo viejo
+  getGroups() { return request("/groups/list"); },
   createGroup(payload) { return request("/groups/", { method: "POST", body: JSON.stringify(payload) }); },
   updateGroup(id, payload) { return request(`/groups/${id}`, { method: "PUT", body: JSON.stringify(payload) }); },
   deleteGroup(id) { return request(`/groups/${id}`, { method: "DELETE" }); },
