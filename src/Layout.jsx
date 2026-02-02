@@ -6,9 +6,8 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
 
   const role = (currentUserRole || "").toLowerCase();
 
-  // Componente de link que valida roles
+  // Componente de link que valida roles de forma estricta
   const NavLink = ({ id, icon, label, rolesAllowed = [] }) => {
-    // Si hay roles permitidos definidos y el rol actual no está, no renderiza nada
     if (rolesAllowed.length > 0 && !rolesAllowed.includes(role)) {
       return null;
     }
@@ -73,28 +72,28 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
 
         <div className="sidebar-nav">
           <div className="nav-section-title">Curriculum</div>
-          {/* Estudiantes SI ven estos */}
+          {/* Estudiantes pueden ver los programas y módulos */}
           <NavLink id="programs" label="Study Programs" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
           <NavLink id="modules" label="Modules" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
 
           <div className="nav-section-title">People & Groups</div>
-          {/* ✅ Mandy: Estudiantes NO ven Lecturers ni Groups */}
-          <NavLink id="lecturers" label="Lecturers" rolesAllowed={["admin", "pm", "hosp", "lecturer"]} />
-          <NavLink id="groups" label="Student Groups" rolesAllowed={["admin", "pm", "hosp"]} />
+          {/* ✅ Ajuste: Estudiantes SI ven Lecturers y Groups (Solo Lectura) */}
+          <NavLink id="lecturers" label="Lecturers" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
+          <NavLink id="groups" label="Student Groups" rolesAllowed={["admin", "pm", "hosp", "student"]} />
 
           <div className="nav-section-title">Facilities</div>
-          {/* ✅ Mandy: Estudiantes NO ven Rooms */}
+          {/* Estudiantes NO ven Rooms */}
           <NavLink id="rooms" label="Rooms" rolesAllowed={["admin", "pm", "hosp"]} />
 
           <div className="nav-section-title">Planning Logic</div>
-          {/* ✅ Mandy: Estudiantes NO ven Constraints ni Availability */}
+          {/* Estudiantes NO ven reglas ni disponibilidad */}
           <NavLink id="constraints" label="Constraints & Rules" rolesAllowed={["admin", "pm", "hosp", "lecturer"]} />
           <NavLink id="availabilities" label="Availability" rolesAllowed={["admin", "pm", "hosp", "lecturer"]} />
         </div>
 
         <div className="sidebar-footer" style={{ borderTop: '1px solid #334155', padding: '20px' }}>
           <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
-            Switch Role (Auto-Login):
+            Switch Role:
           </label>
           <select value={getDropdownValue()} onChange={handleRoleChange} style={{
               background: '#1e293b', color: 'white', border: '1px solid #475569',
@@ -116,11 +115,13 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
               {activeTab.charAt(0).toUpperCase() + activeTab.slice(1).replace('-', ' ')}
             </h1>
             <span style={{ background: '#e2e8f0', color: '#475569', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-              Logged in as: {currentUserRole}
+              Role: {currentUserRole}
             </span>
           </div>
         </div>
-        {children}
+        <div className="content-container">
+            {children}
+        </div>
       </main>
     </div>
   );
