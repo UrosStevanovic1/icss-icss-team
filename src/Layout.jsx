@@ -3,6 +3,7 @@ import api from "./api";
 import "./App.css";
 
 const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrentUserRole }) => {
+  // Normalizamos el rol actual para comparaciones
   const role = (currentUserRole || "").toLowerCase();
 
   const NavLink = ({ id, icon, label, rolesAllowed = [] }) => {
@@ -36,6 +37,8 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
 
     try {
       const data = await api.login(email, password);
+
+      // 1. Guardamos en LocalStorage
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("userRole", data.role);
 
@@ -45,15 +48,21 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
         localStorage.removeItem("lecturerId");
       }
 
+      // 2. Actualizamos el estado de React
       setCurrentUserRole(data.role);
+
+      // 🔥 3. DISPARAMOS EL EVENTO PARA QUE LOS MÓDULOS SE ENTEREN AL INSTANTE
+      window.dispatchEvent(new Event("role-changed"));
+
+      // 4. Recargamos la página para limpiar memoria
       window.location.reload();
     } catch (err) {
       console.error(err);
-      alert("Login Error");
+      alert("Login Error: " + err.message);
     }
   };
 
-  // Valor del dropdown
+  // Valor del dropdown para la UI
   let dropdownVal = "Guest";
   if (role === "admin" || role === "pm") dropdownVal = "PM";
   else if (role === "hosp") dropdownVal = "HoSP";
@@ -73,7 +82,7 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
           <div className="nav-section-title">People & Groups</div>
           <NavLink id="lecturers" label="Lecturers" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
 
-          {/* ✅ AQUÍ ESTÁ: Student incluido al mismo nivel que Admin */}
+          {/* ✅ Student incluido */}
           <NavLink id="groups" label="Student Groups" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
 
           <div className="nav-section-title">Facilities</div>
