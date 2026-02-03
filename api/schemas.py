@@ -1,4 +1,5 @@
-from pydantic import BaseModel,fields
+from pydantic import BaseModel, Field
+
 from typing import List, Optional, Any
 
 # --- AUTH ---
@@ -109,7 +110,8 @@ class SpecializationResponse(SpecializationBase):
 # --- MODULES ---
 class AssessmentPart(BaseModel):
     type: str
-    weight: int = Field(ge=0, le=100)
+    weight: Optional[int] = Field(default=None, ge=0, le=100)
+
 
 class LecturerAssignment(BaseModel):
     lecturer_id: int

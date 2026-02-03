@@ -10,10 +10,6 @@ from ..permissions import role_of, is_admin_or_pm, hosp_program_ids
 router = APIRouter(prefix="/modules", tags=["modules"])
 
 
-# ---------------------------
-# Helpers: JSON in assessment_type
-# ---------------------------
-
 def _safe_json_load(s: Optional[str]) -> Optional[Any]:
     if not s or not isinstance(s, str):
         return None
@@ -25,17 +21,11 @@ def _safe_json_load(s: Optional[str]) -> Optional[Any]:
     except Exception:
         return None
 
+
 def _parse_module_payload(assessment_type_value: Optional[str]) -> dict:
-    """
-    assessment_type column may contain:
-    - legacy string: "Written Exam"
-    - json list: [{"type":"Written Exam","weight":70}, ...]
-    - json dict: {"assessments":[...], "lecturer_assignments":[...]}
-    """
     parsed = _safe_json_load(assessment_type_value)
 
     if isinstance(parsed, list):
-        # old-ish style list
         return {"assessments": parsed, "lecturer_assignments": []}
 
     if isinstance(parsed, dict):
@@ -44,34 +34,80 @@ def _parse_module_payload(assessment_type_value: Optional[str]) -> dict:
             "lecturer_assignments": parsed.get("lecturer_assignments") or []
         }
 
-    # legacy string
     if assessment_type_value and isinstance(assessment_type_value, str):
         return {"assessments": [], "lecturer_assignments": [], "legacy": assessment_type_value}
 
     return {"assessments": [], "lecturer_assignments": []}
 
-def _validate_assessments(breakdown: List[schemas.AssessmentPart]):
-    if len(breakdown) == 0:
-        return
 
-    total = sum(int(x.weight) for x in breakdown)
-    if total != 100:
-        raise HTTPException(status_code=400, detail=f"Assessment weights must sum to 100 (got {total}).")
+def _normalize_assessments(breakdown: List[schemas.AssessmentPart]) -> List[dict]:
+    if breakdown is None:
+        return []
 
-    # Optional: block duplicates
+    items = []
     seen = set()
+
     for x in breakdown:
         t = (x.type or "").strip()
         if not t:
             raise HTTPException(status_code=400, detail="Assessment type cannot be empty.")
-        if t.lower() in seen:
-            raise HTTPException(status_code=400, detail=f"Duplicate assessment type: {x.type}")
-        seen.add(t.lower())
+        key = t.lower()
+        if key in seen:
+            raise HTTPException(status_code=400, detail=f"Duplicate assessment type: {t}")
+        seen.add(key)
+        w = x.weight if getattr(x, "weight", None) is not None else None
+        if w is not None:
+            try:
+                w = int(w)
+            except Exception:
+                raise HTTPException(status_code=400, detail="Assessment weight must be an integer.")
+            if w < 0 or w > 100:
+                raise HTTPException(status_code=400, detail="Assessment weight must be between 0 and 100.")
+        items.append({"type": t, "weight": w})
+
+    n = len(items)
+    if n == 0:
+        return []
+
+    if n == 1:
+        w = items[0]["weight"]
+        if w is None:
+            items[0]["weight"] = 100
+            return items
+        if w != 100:
+            raise HTTPException(status_code=400, detail="If only 1 assessment type is provided, weight must be 100.")
+        return items
+
+    specified = [i for i in items if i["weight"] is not None]
+    unspecified = [i for i in items if i["weight"] is None]
+
+    specified_sum = sum(i["weight"] for i in specified) if specified else 0
+    if specified_sum > 100:
+        raise HTTPException(status_code=400, detail=f"Assessment weights exceed 100 (got {specified_sum}).")
+
+    remaining = 100 - specified_sum
+
+    if len(unspecified) == 0:
+        if specified_sum != 100:
+            raise HTTPException(status_code=400, detail=f"Assessment weights must sum to 100 (got {specified_sum}).")
+        return items
+
+    if len(unspecified) == 1:
+        unspecified[0]["weight"] = remaining
+        return items
+
+    base = remaining // len(unspecified)
+    extra = remaining % len(unspecified)
+    for idx, i in enumerate(unspecified):
+        i["weight"] = base + (1 if idx < extra else 0)
+
+    total = sum(i["weight"] for i in items)
+    if total != 100:
+        raise HTTPException(status_code=400, detail=f"Assessment weights must sum to 100 (got {total}).")
+    return items
+
 
 def _validate_assignments(db: Session, assignments: List[schemas.LecturerAssignment]):
-    """
-    Validate lecturer_id and group_id exist (if provided).
-    """
     if not assignments:
         return
 
@@ -92,12 +128,12 @@ def _validate_assignments(db: Session, assignments: List[schemas.LecturerAssignm
         if missing_g:
             raise HTTPException(status_code=400, detail=f"Unknown group_id(s): {sorted(list(missing_g))}")
 
+
 def _make_response(row: models.Module) -> schemas.ModuleResponse:
     payload = _parse_module_payload(row.assessment_type)
     assessments = payload.get("assessments") or []
     assignments = payload.get("lecturer_assignments") or []
 
-    # If legacy string exists, keep it in assessment_type as-is.
     legacy = payload.get("legacy")
     assessment_type_out = legacy if legacy else row.assessment_type
 
@@ -152,21 +188,16 @@ def create_module(
     assessment_breakdown = data.pop("assessment_breakdown", None)
     lecturer_assignments = data.pop("lecturer_assignments", None)
 
-    # ✅ Validate assessments
+    normalized_assessments = None
     if assessment_breakdown is not None:
-        _validate_assessments([schemas.AssessmentPart(**x) if isinstance(x, dict) else x for x in assessment_breakdown])
+        normalized_assessments = _normalize_assessments(assessment_breakdown)
 
-    # ✅ Validate lecturer assignments
     if lecturer_assignments is not None:
-        _validate_assignments(
-            db,
-            [schemas.LecturerAssignment(**x) if isinstance(x, dict) else x for x in lecturer_assignments]
-        )
+        _validate_assignments(db, lecturer_assignments)
 
-    # ✅ Store JSON payload inside assessment_type (only if using new features)
     if assessment_breakdown is not None or lecturer_assignments is not None:
         payload = {
-            "assessments": assessment_breakdown or [],
+            "assessments": normalized_assessments if normalized_assessments is not None else [],
             "lecturer_assignments": lecturer_assignments or []
         }
         data["assessment_type"] = json.dumps(payload)
@@ -181,7 +212,6 @@ def create_module(
     db.commit()
     db.refresh(row)
 
-    # ensure specializations loaded
     row = (
         db.query(models.Module)
         .filter(models.Module.module_code == row.module_code)
@@ -220,37 +250,30 @@ def update_module(
 
     data = p.model_dump(exclude_unset=True)
 
-    # specializations update
     if "specialization_ids" in data:
         spec_ids = data.pop("specialization_ids")
         if spec_ids is not None:
             specs = db.query(models.Specialization).filter(models.Specialization.id.in_(spec_ids)).all()
             row.specializations = specs
 
-    # new fields
     assessment_breakdown = data.pop("assessment_breakdown", None)
     lecturer_assignments = data.pop("lecturer_assignments", None)
 
+    normalized_assessments = None
     if assessment_breakdown is not None:
-        _validate_assessments([schemas.AssessmentPart(**x) if isinstance(x, dict) else x for x in assessment_breakdown])
+        normalized_assessments = _normalize_assessments(assessment_breakdown)
 
     if lecturer_assignments is not None:
-        _validate_assignments(
-            db,
-            [schemas.LecturerAssignment(**x) if isinstance(x, dict) else x for x in lecturer_assignments]
-        )
+        _validate_assignments(db, lecturer_assignments)
 
-    # If any of the new structures are provided, merge with what's already stored
     if assessment_breakdown is not None or lecturer_assignments is not None:
         existing = _parse_module_payload(row.assessment_type)
-
         merged_payload = {
-            "assessments": assessment_breakdown if assessment_breakdown is not None else (existing.get("assessments") or []),
+            "assessments": normalized_assessments if normalized_assessments is not None else (existing.get("assessments") or []),
             "lecturer_assignments": lecturer_assignments if lecturer_assignments is not None else (existing.get("lecturer_assignments") or [])
         }
         row.assessment_type = json.dumps(merged_payload)
 
-    # regular fields update
     for k, v in data.items():
         setattr(row, k, v)
 
