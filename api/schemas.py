@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
 from typing import List, Optional, Any
 
 # --- AUTH ---
@@ -196,6 +197,11 @@ class AvailabilityResponse(BaseModel):
     schedule_data: Any
     class Config:
         from_attributes = True
+
+class AssessmentPart(BaseModel):
+    type: str
+    weight: Optional[int] = Field(default=None, ge=0, le=100)
+
 
 # --- CONSTRAINT TYPES ---
 class ConstraintTypeResponse(BaseModel):
