@@ -105,6 +105,16 @@ function assessmentSummaryFromDraft(draft) {
   }
   return draft.assessment_type || "-";
 }
+function formatAssessmentForList(m) {
+  const ab = Array.isArray(m?.assessment_breakdown) ? m.assessment_breakdown : [];
+  if (ab.length > 0) {
+    return ab
+      .filter(a => a?.type)
+      .map(a => `${a.type}${a.weight !== null && a.weight !== undefined ? ` (${a.weight}%)` : ""}`)
+      .join(", ");
+  }
+  return m?.assessment_type || "-";
+}
 
 export default function ModuleOverview({ onNavigate }) {
   const [modules, setModules] = useState([]);
@@ -428,7 +438,8 @@ export default function ModuleOverview({ onNavigate }) {
 
                 <div style={{ ...styles.centeredCell, fontWeight: 'bold', color: '#475569' }}>{m.ects}</div>
 
-                <div style={styles.cellText}>{m.assessment_type || "-"}</div>
+               <div style={styles.cellText}>{formatAssessmentForList(m)}</div>
+
 
                 <div style={styles.cellText}>{m.room_type}</div>
 

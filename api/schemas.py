@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
 from typing import List, Optional, Any
 
 # --- AUTH ---
@@ -23,6 +24,9 @@ class LecturerBase(BaseModel):
     phone: Optional[str] = None
     location: Optional[str] = None
     teaching_load: Optional[str] = None
+class AssessmentPart(BaseModel):
+    type: str
+    weight: Optional[int] = Field(default=None, ge=0, le=100)
 
 class LecturerCreate(LecturerBase):
     pass
@@ -132,6 +136,8 @@ class ModuleUpdate(BaseModel):
 
 class ModuleResponse(ModuleBase):
     specializations: List[SpecializationResponse] = []
+    assessment_breakdown: List[AssessmentPart] = []
+
     class Config:
         from_attributes = True
 
