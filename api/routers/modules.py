@@ -1,4 +1,3 @@
-# api/routers/modules.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from typing import List
@@ -9,7 +8,7 @@ from ..permissions import role_of, is_admin_or_pm, hosp_program_ids, require_adm
 
 router = APIRouter(prefix="/modules", tags=["modules"])
 
-# ✅ GET: Leer todos los módulos (Público/Autenticado)
+# ✅ GET: Leer todos los módulos
 @router.get("/", response_model=List[schemas.ModuleResponse])
 def read_modules(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     return db.query(models.Module).options(joinedload(models.Module.specializations)).all()
@@ -29,6 +28,7 @@ def create_module(p: schemas.ModuleCreate, db: Session = Depends(get_db),
     else:
         raise HTTPException(status_code=403, detail="Only Admins, PMs or HoSPs can create modules")
 
+    # Usamos model_dump para Pydantic v2
     module_data = p.model_dump(exclude={"specialization_ids"})
     row = models.Module(**module_data)
     db.add(row)
