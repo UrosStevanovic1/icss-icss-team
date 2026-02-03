@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import api from "../api";
 
-// Toggle to avoid breaking current backend.
-// When your backend accepts these new fields, set to true.
-const ENABLE_V2_FIELDS = false;
+const ENABLE_V2_FIELDS = true;
 
-// --- STYLES ---
 const styles = {
   container: { padding: "20px", fontFamily: "'Inter', sans-serif", color: "#333", maxWidth: "1200px", margin: "0 auto" },
-
-  // Header & Controls
   controlsBar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", gap: "15px", flexWrap: "wrap" },
   searchBar: {
     padding: "10px 15px",
@@ -22,11 +17,7 @@ const styles = {
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
     outline: "none"
   },
-
-  // LIST LAYOUT
   listContainer: { display: "flex", flexDirection: "column", gap: "12px" },
-
-  // Grid: Code | Name | Program | Semester | Category | ECTS | Assessment | Room Type | Actions
   listHeader: {
     display: "grid",
     gridTemplateColumns: "80px 2fr 1.5fr 80px 100px 60px 1.2fr 1.2fr 110px",
@@ -40,7 +31,6 @@ const styles = {
     letterSpacing: "0.05em",
     alignItems: "center"
   },
-
   listCard: {
     background: "white",
     borderRadius: "8px",
@@ -54,31 +44,22 @@ const styles = {
     gap: "15px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
   },
-
   listCardHover: { backgroundColor: "#f1f5f9" },
-
-  // Typography
   codeText: { fontWeight: "700", color: "#3b82f6", fontSize: "0.95rem" },
   nameText: { fontWeight: "600", color: "#1e293b", lineHeight: "1.4" },
   programLink: { color: "#475569", cursor: "pointer", textDecoration: "underline", fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
   centeredCell: { textAlign: "center", fontSize: "0.9rem", color: "#64748b" },
   cellText: { fontSize: "0.9rem", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-
-  // Badges
   catBadge: { padding: "4px 8px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: "bold", textAlign: "center", textTransform: "uppercase", display: "inline-block" },
   catCore: { background: "#dbeafe", color: "#1e40af" },
   catElective: { background: "#fef3c7", color: "#92400e" },
   catShared: { background: "#f3e8ff", color: "#6b21a8" },
-
-  // Buttons
   btn: { padding: "8px 16px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.9rem", fontWeight: "500", transition: "0.2s" },
   primaryBtn: { background: "#3b82f6", color: "white" },
   actionContainer: { display: "flex", gap: "8px", justifyContent: "flex-end" },
   actionBtn: { padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: "600" },
   editBtn: { background: "#e2e8f0", color: "#475569" },
   deleteBtn: { background: "#fee2e2", color: "#ef4444" },
-
-  // Modal
   overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
   modal: {
     backgroundColor: "#ffffff",
@@ -90,42 +71,25 @@ const styles = {
     overflowY: "auto",
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)"
   },
-
   formGroup: { marginBottom: "15px" },
   label: { display: "block", marginBottom: "5px", fontWeight: "600", fontSize: "0.85rem", color: "#64748b" },
   input: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", boxSizing: "border-box", marginBottom: "15px" },
   select: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", background: "white", marginBottom: "15px" },
-
-  // NEW: sections inside modal
   sectionBox: { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "14px", marginBottom: "15px" },
   sectionTitle: { margin: "0 0 10px 0", fontSize: "0.95rem", fontWeight: "700", color: "#334155" },
-
   row: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" },
   miniBtn: { padding: "8px 10px", borderRadius: "6px", border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontWeight: 600, color: "#334155" },
   dangerMiniBtn: { padding: "8px 10px", borderRadius: "6px", border: "1px solid #fecaca", background: "#fff1f2", cursor: "pointer", fontWeight: 700, color: "#e11d48" },
-
-  tableLike: { width: "100%", borderCollapse: "collapse" },
   trLine: { borderTop: "1px solid #e2e8f0" },
-
   pill: { display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 10px", borderRadius: "999px", border: "1px solid #e2e8f0", background: "white", fontSize: "0.85rem", color: "#475569" },
-
   totalOk: { background: "#ecfdf5", borderColor: "#bbf7d0", color: "#065f46" },
   totalBad: { background: "#fff1f2", borderColor: "#fecaca", color: "#9f1239" },
-
   helpText: { fontSize: "0.85rem", color: "#64748b", marginTop: "6px", lineHeight: 1.4 }
 };
 
 const STANDARD_ROOM_TYPES = ["Lecture Classroom", "Computer Lab", "Seminar"];
 const ASSESSMENT_TYPES = ["Written Exam", "Presentation", "Project", "Report"];
 const CATEGORY_TYPES = ["Core", "Shared", "Elective"];
-
-// Lecturer scope options (real-world flexible)
-const TEACH_SCOPE = [
-  { value: "ALL", label: "All occurrences (default)" },
-  { value: "SEMESTER", label: "Specific semester only" },
-  { value: "GROUP", label: "Specific group only" },
-  { value: "SEMESTER_GROUP", label: "Specific semester + group" }
-];
 
 function safeInt(v, fallback) {
   const n = parseInt(v, 10);
@@ -136,7 +100,7 @@ function assessmentSummaryFromDraft(draft) {
   if (Array.isArray(draft.assessments) && draft.assessments.length > 0) {
     return draft.assessments
       .filter(a => a?.type)
-      .map(a => `${a.type}${Number.isFinite(parseInt(a.weight, 10)) ? ` (${parseInt(a.weight, 10)}%)` : ""}`)
+      .map(a => `${a.type}${a.weight !== "" && a.weight !== null && a.weight !== undefined ? ` (${safeInt(a.weight, 0)}%)` : ""}`)
       .join(", ");
   }
   return draft.assessment_type || "-";
@@ -147,34 +111,26 @@ export default function ModuleOverview({ onNavigate }) {
   const [programs, setPrograms] = useState([]);
   const [specializations, setSpecializations] = useState([]);
   const [customRoomTypes, setCustomRoomTypes] = useState([]);
-  const [lecturers, setLecturers] = useState([]); // ✅ from DB
-  const [groups, setGroups] = useState([]); // optional (if you have groups in DB)
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [hoverId, setHoverId] = useState(null);
 
-  // Form State
   const [formMode, setFormMode] = useState("overview");
   const [editingCode, setEditingCode] = useState(null);
   const [selectedSpecToAdd, setSelectedSpecToAdd] = useState("");
   const [draft, setDraft] = useState({
     module_code: "",
     name: "",
-    ects: 5, // ✅ default 5
+    ects: 5,
     room_type: "Lecture Classroom",
     semester: 1,
-    // legacy single value
     assessment_type: "Written Exam",
-    // ✅ NEW: assessment breakdown
     assessments: [{ type: "Written Exam", weight: 100 }],
     category: "Core",
     program_id: "",
-    specialization_ids: [],
-    // ✅ NEW: flexible lecturer assignments
-    teaching_assignments: []
+    specialization_ids: []
   });
 
-  // Delete State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [moduleToDelete, setModuleToDelete] = useState(null);
 
@@ -183,30 +139,16 @@ export default function ModuleOverview({ onNavigate }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const calls = [
+      const [modData, progData, specData, roomData] = await Promise.all([
         api.getModules(),
         api.getPrograms(),
         api.getSpecializations(),
         api.getRooms()
-      ];
-
-      // These may not exist yet; we handle gracefully.
-      const hasLecturersFn = typeof api.getLecturers === "function";
-      const hasGroupsFn = typeof api.getGroups === "function";
-
-      if (hasLecturersFn) calls.push(api.getLecturers());
-      else calls.push(Promise.resolve([]));
-
-      if (hasGroupsFn) calls.push(api.getGroups());
-      else calls.push(Promise.resolve([]));
-
-      const [modData, progData, specData, roomData, lecturerData, groupData] = await Promise.all(calls);
+      ]);
 
       setModules(Array.isArray(modData) ? modData : []);
       setPrograms(Array.isArray(progData) ? progData : []);
       setSpecializations(Array.isArray(specData) ? specData : []);
-      setLecturers(Array.isArray(lecturerData) ? lecturerData : []);
-      setGroups(Array.isArray(groupData) ? groupData : []);
 
       const existingCustom = (Array.isArray(roomData) ? roomData : [])
         .map(r => r.type)
@@ -237,8 +179,7 @@ export default function ModuleOverview({ onNavigate }) {
       assessments: [{ type: "Written Exam", weight: 100 }],
       category: "Core",
       program_id: "",
-      specialization_ids: [],
-      teaching_assignments: []
+      specialization_ids: []
     });
     setFormMode("add");
   };
@@ -247,11 +188,20 @@ export default function ModuleOverview({ onNavigate }) {
     setEditingCode(m.module_code);
     setSelectedSpecToAdd("");
 
-    // If backend doesn't provide assessments yet, build from legacy field.
-    const inferredAssessments =
-      Array.isArray(m.assessments) && m.assessments.length > 0
-        ? m.assessments
-        : [{ type: (m.assessment_type || "Written Exam"), weight: 100 }];
+    const fromV2 = Array.isArray(m.assessment_breakdown) && m.assessment_breakdown.length > 0
+      ? m.assessment_breakdown
+      : null;
+
+    const inferredAssessments = fromV2
+      ? fromV2
+      : [{ type: (m.assessment_type || "Written Exam"), weight: 100 }];
+
+    const normalized = inferredAssessments.map(a => ({
+      type: a?.type || "Written Exam",
+      weight: a?.weight === null || a?.weight === undefined ? "" : String(a.weight)
+    }));
+
+    if (normalized.length === 1) normalized[0].weight = "100";
 
     setDraft({
       module_code: m.module_code,
@@ -260,16 +210,10 @@ export default function ModuleOverview({ onNavigate }) {
       room_type: m.room_type,
       semester: m.semester,
       assessment_type: m.assessment_type || "Written Exam",
-      assessments: inferredAssessments.map(a => ({
-        type: a.type || "Written Exam",
-        weight: Number.isFinite(parseInt(a.weight, 10)) ? parseInt(a.weight, 10) : 0
-      })),
+      assessments: normalized,
       category: m.category || "Core",
       program_id: m.program_id ? String(m.program_id) : "",
-      specialization_ids: (m.specializations || []).map(s => s.id),
-
-      // If backend doesn't provide teaching assignments yet, start empty.
-      teaching_assignments: Array.isArray(m.teaching_assignments) ? m.teaching_assignments : []
+      specialization_ids: (m.specializations || []).map(s => s.id)
     });
 
     setFormMode("edit");
@@ -317,9 +261,6 @@ export default function ModuleOverview({ onNavigate }) {
     return styles.catShared;
   };
 
-  // ---------------------------
-  // Assessments (weights sum 100)
-  // ---------------------------
   const assessmentTotal = useMemo(() => {
     return (draft.assessments || []).reduce((sum, a) => sum + safeInt(a.weight, 0), 0);
   }, [draft.assessments]);
@@ -327,7 +268,7 @@ export default function ModuleOverview({ onNavigate }) {
   const addAssessmentRow = () => {
     setDraft(prev => ({
       ...prev,
-      assessments: [...(prev.assessments || []), { type: "Project", weight: 0 }]
+      assessments: [...(prev.assessments || []), { type: "Project", weight: "" }]
     }));
   };
 
@@ -335,7 +276,9 @@ export default function ModuleOverview({ onNavigate }) {
     setDraft(prev => {
       const next = [...(prev.assessments || [])];
       next.splice(idx, 1);
-      return { ...prev, assessments: next.length ? next : [{ type: "Written Exam", weight: 100 }] };
+      if (next.length === 0) return { ...prev, assessments: [{ type: "Written Exam", weight: "100" }] };
+      if (next.length === 1) next[0].weight = "100";
+      return { ...prev, assessments: next };
     });
   };
 
@@ -343,69 +286,9 @@ export default function ModuleOverview({ onNavigate }) {
     setDraft(prev => {
       const next = [...(prev.assessments || [])];
       next[idx] = { ...next[idx], ...patch };
+      if (next.length === 1) next[0].weight = "100";
       return { ...prev, assessments: next };
     });
-  };
-
-  const autoDistributeAssessments = () => {
-    setDraft(prev => {
-      const list = [...(prev.assessments || [])];
-      if (list.length === 0) return prev;
-
-      const n = list.length;
-      const base = Math.floor(100 / n);
-      let rem = 100 - base * n;
-
-      const next = list.map((a, i) => {
-        const extra = rem > 0 ? 1 : 0;
-        if (rem > 0) rem -= 1;
-        return { ...a, weight: base + extra };
-      });
-
-      return { ...prev, assessments: next };
-    });
-  };
-
-  // ---------------------------
-  // Lecturer assignments
-  // ---------------------------
-  const addTeachingAssignment = () => {
-    setDraft(prev => ({
-      ...prev,
-      teaching_assignments: [
-        ...(prev.teaching_assignments || []),
-        {
-          lecturer_id: "",
-          scope: "ALL",
-          semester: "",
-          group_id: "",
-          note: ""
-        }
-      ]
-    }));
-  };
-
-  const removeTeachingAssignment = (idx) => {
-    setDraft(prev => {
-      const next = [...(prev.teaching_assignments || [])];
-      next.splice(idx, 1);
-      return { ...prev, teaching_assignments: next };
-    });
-  };
-
-  const updateTeachingAssignment = (idx, patch) => {
-    setDraft(prev => {
-      const next = [...(prev.teaching_assignments || [])];
-      next[idx] = { ...next[idx], ...patch };
-      return { ...prev, teaching_assignments: next };
-    });
-  };
-
-  const getLecturerLabel = (l) => {
-    if (!l) return "";
-    // support different DB field shapes
-    const name = l.name || l.full_name || `${l.first_name || ""} ${l.last_name || ""}`.trim();
-    return name || `Lecturer #${l.id}`;
   };
 
   const validateBeforeSave = () => {
@@ -420,40 +303,30 @@ export default function ModuleOverview({ onNavigate }) {
       return false;
     }
 
-    // Assessments must sum exactly to 100
     const list = draft.assessments || [];
     if (list.length === 0) {
       alert("Please add at least one assessment.");
       return false;
     }
+
     const hasEmptyType = list.some(a => !a?.type);
     if (hasEmptyType) {
       alert("Each assessment must have a type.");
       return false;
     }
-    if (assessmentTotal !== 100) {
-      alert(`Assessment weights must total exactly 100%. Current total: ${assessmentTotal}%`);
-      return false;
-    }
 
-    // Teaching assignments minimal validation
-    const ta = draft.teaching_assignments || [];
-    const hasLecturerMissing = ta.some(a => a && !a.lecturer_id);
-    if (hasLecturerMissing) {
-      alert("Each teaching assignment must have a lecturer selected (or remove the row).");
-      return false;
-    }
-
-    // Scope-specific checks
-    const badScope = ta.some(a => {
-      if (!a) return false;
-      if (a.scope === "SEMESTER" && !a.semester) return true;
-      if (a.scope === "GROUP" && !a.group_id) return true;
-      if (a.scope === "SEMESTER_GROUP" && (!a.semester || !a.group_id)) return true;
-      return false;
+    const badWeight = list.some(a => {
+      if (a.weight === "" || a.weight === null || a.weight === undefined) return false;
+      const w = safeInt(a.weight, NaN);
+      return !Number.isFinite(w) || w < 0 || w > 100;
     });
-    if (badScope) {
-      alert("For lecturer assignments: Semester/Group fields must match the chosen Scope.");
+    if (badWeight) {
+      alert("Weights must be between 0 and 100 (or left empty).");
+      return false;
+    }
+
+    if (list.length === 1 && safeInt(list[0].weight, 0) !== 100) {
+      alert("If only 1 assessment is provided, weight must be 100.");
       return false;
     }
 
@@ -463,35 +336,22 @@ export default function ModuleOverview({ onNavigate }) {
   const save = async () => {
     if (!validateBeforeSave()) return;
 
-    // Legacy payload (safe for current backend)
     const payload = {
       module_code: draft.module_code,
       name: draft.name,
       ects: safeInt(draft.ects, 5),
       room_type: draft.room_type,
       semester: safeInt(draft.semester, 1),
-
-      // keep existing backend field:
       assessment_type: (draft.assessments?.[0]?.type || draft.assessment_type || "Written Exam"),
-
       category: draft.category,
       program_id: draft.program_id ? safeInt(draft.program_id, null) : null,
       specialization_ids: draft.specialization_ids
     };
 
-    // V2 fields (enable later when backend is ready)
     if (ENABLE_V2_FIELDS) {
       payload.assessment_breakdown = (draft.assessments || []).map(a => ({
         type: a.type,
-        weight: safeInt(a.weight, 0)
-      }));
-
-      payload.teaching_assignments = (draft.teaching_assignments || []).map(a => ({
-        lecturer_id: safeInt(a.lecturer_id, null),
-        scope: a.scope,
-        semester: a.semester ? safeInt(a.semester, null) : null,
-        group_id: a.group_id ? safeInt(a.group_id, null) : null,
-        note: a.note || null
+        weight: a.weight === "" || a.weight === null || a.weight === undefined ? null : safeInt(a.weight, 0)
       }));
     }
 
@@ -509,7 +369,6 @@ export default function ModuleOverview({ onNavigate }) {
 
   return (
     <div style={styles.container}>
-      {/* Controls */}
       <div style={styles.controlsBar}>
         <input
           style={styles.searchBar}
@@ -520,7 +379,6 @@ export default function ModuleOverview({ onNavigate }) {
         <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={openAdd}>+ New Module</button>
       </div>
 
-      {/* Header Row */}
       <div style={styles.listHeader}>
         <div>Code</div>
         <div>Module Name</div>
@@ -533,7 +391,6 @@ export default function ModuleOverview({ onNavigate }) {
         <div style={{ textAlign: "right" }}>Action</div>
       </div>
 
-      {/* List Container */}
       <div style={styles.listContainer}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Loading modules...</div>
@@ -571,7 +428,6 @@ export default function ModuleOverview({ onNavigate }) {
 
                 <div style={{ ...styles.centeredCell, fontWeight: 'bold', color: '#475569' }}>{m.ects}</div>
 
-                {/* list uses legacy for now */}
                 <div style={styles.cellText}>{m.assessment_type || "-"}</div>
 
                 <div style={styles.cellText}>{m.room_type}</div>
@@ -591,7 +447,6 @@ export default function ModuleOverview({ onNavigate }) {
         )}
       </div>
 
-      {/* MODAL */}
       {(formMode === "add" || formMode === "edit") && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
@@ -627,7 +482,6 @@ export default function ModuleOverview({ onNavigate }) {
             </div>
 
             <div style={{ display: 'flex', gap: '15px' }}>
-              {/* ✅ ECTS: default 5 but changeable */}
               <div style={{ ...styles.formGroup, flex: 1 }}>
                 <label style={styles.label}>ECTS</label>
                 <input
@@ -684,7 +538,6 @@ export default function ModuleOverview({ onNavigate }) {
                 </select>
               </div>
 
-              {/* Legacy single assessment hidden by UI now; we show new section below */}
               <div style={{ ...styles.formGroup, flex: 1 }}>
                 <label style={styles.label}>Assessment (summary)</label>
                 <input
@@ -695,7 +548,6 @@ export default function ModuleOverview({ onNavigate }) {
               </div>
             </div>
 
-            {/* ✅ NEW: Assessment breakdown */}
             <div style={styles.sectionBox}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
                 <h4 style={styles.sectionTitle}>Assessment breakdown</h4>
@@ -706,15 +558,11 @@ export default function ModuleOverview({ onNavigate }) {
                       ...styles.pill,
                       ...(assessmentTotal === 100 ? styles.totalOk : styles.totalBad)
                     }}
-                    title="Must be exactly 100%"
+                    title="Total should be 100%"
                   >
                     Total: <strong>{assessmentTotal}%</strong>
                     {assessmentTotal === 100 ? " ✅" : " ⚠️"}
                   </span>
-
-                  <button type="button" style={styles.miniBtn} onClick={autoDistributeAssessments}>
-                    Auto-distribute
-                  </button>
 
                   <button type="button" style={{ ...styles.miniBtn, borderColor: "#bfdbfe" }} onClick={addAssessmentRow}>
                     + Add assessment
@@ -723,48 +571,53 @@ export default function ModuleOverview({ onNavigate }) {
               </div>
 
               <div style={styles.helpText}>
-                Add one or more assessment types and set their weights. The total must be <strong>exactly 100%</strong>.
+                Add one or more assessment types and optionally set weights. Backend will normalize to 100%.
               </div>
 
               <div style={{ marginTop: "12px" }}>
-                {(draft.assessments || []).map((a, idx) => (
-                  <div key={idx} style={{ ...styles.row, padding: "10px 0", ...(idx > 0 ? styles.trLine : {}) }}>
-                    <div style={{ flex: 2, minWidth: "220px" }}>
-                      <label style={styles.label}>Type</label>
-                      <select
-                        style={{ ...styles.select, marginBottom: 0 }}
-                        value={a.type}
-                        onChange={(e) => updateAssessment(idx, { type: e.target.value })}
-                      >
-                        {ASSESSMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </div>
+                {(draft.assessments || []).map((a, idx) => {
+                  const single = (draft.assessments || []).length === 1;
+                  return (
+                    <div key={idx} style={{ ...styles.row, padding: "10px 0", ...(idx > 0 ? styles.trLine : {}) }}>
+                      <div style={{ flex: 2, minWidth: "220px" }}>
+                        <label style={styles.label}>Type</label>
+                        <select
+                          style={{ ...styles.select, marginBottom: 0 }}
+                          value={a.type}
+                          onChange={(e) => updateAssessment(idx, { type: e.target.value })}
+                        >
+                          {ASSESSMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
 
-                    <div style={{ flex: 1, minWidth: "140px" }}>
-                      <label style={styles.label}>Weight (%)</label>
-                      <input
-                        type="number"
-                        style={{ ...styles.input, marginBottom: 0 }}
-                        value={a.weight}
-                        onChange={(e) => updateAssessment(idx, { weight: e.target.value })}
-                        min="0"
-                        max="100"
-                        step="1"
-                      />
-                    </div>
+                      <div style={{ flex: 1, minWidth: "140px" }}>
+                        <label style={styles.label}>Weight (%)</label>
+                        <input
+                          type="number"
+                          style={{ ...styles.input, marginBottom: 0 }}
+                          value={single ? 100 : a.weight}
+                          onChange={(e) => updateAssessment(idx, { weight: e.target.value })}
+                          min="0"
+                          max="100"
+                          step="1"
+                          disabled={single}
+                        />
+                      </div>
 
-                    <div style={{ display: "flex", alignItems: "end", paddingBottom: "1px" }}>
-                      <button
-                        type="button"
-                        style={styles.dangerMiniBtn}
-                        onClick={() => removeAssessmentRow(idx)}
-                        title="Remove assessment"
-                      >
-                        ×
-                      </button>
+                      <div style={{ display: "flex", alignItems: "end", paddingBottom: "1px" }}>
+                        <button
+                          type="button"
+                          style={{ ...styles.dangerMiniBtn, opacity: single ? 0.5 : 1, cursor: single ? "not-allowed" : "pointer" }}
+                          onClick={() => !single && removeAssessmentRow(idx)}
+                          disabled={single}
+                          title="Remove assessment"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -782,126 +635,6 @@ export default function ModuleOverview({ onNavigate }) {
               </select>
             </div>
 
-            {/* ✅ NEW: Lecturer assignments */}
-            <div style={styles.sectionBox}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
-                <h4 style={styles.sectionTitle}>Teaching assignments</h4>
-                <button type="button" style={{ ...styles.miniBtn, borderColor: "#bfdbfe" }} onClick={addTeachingAssignment}>
-                  + Add lecturer
-                </button>
-              </div>
-
-              <div style={styles.helpText}>
-                Supports real-life cases: multiple lecturers per module, per semester, per group, or both.
-                You can add as many assignments as needed.
-              </div>
-
-              {(draft.teaching_assignments || []).length === 0 ? (
-                <div style={{ marginTop: "10px", fontStyle: "italic", color: "#94a3b8" }}>
-                  No teaching assignments yet.
-                </div>
-              ) : (
-                <div style={{ marginTop: "12px" }}>
-                  {(draft.teaching_assignments || []).map((ta, idx) => {
-                    const showSemester = ta.scope === "SEMESTER" || ta.scope === "SEMESTER_GROUP";
-                    const showGroup = ta.scope === "GROUP" || ta.scope === "SEMESTER_GROUP";
-
-                    return (
-                      <div key={idx} style={{ padding: "10px 0", ...(idx > 0 ? styles.trLine : {}) }}>
-                        <div style={styles.row}>
-                          <div style={{ flex: 2, minWidth: "240px" }}>
-                            <label style={styles.label}>Lecturer</label>
-                            <select
-                              style={{ ...styles.select, marginBottom: 0 }}
-                              value={ta.lecturer_id}
-                              onChange={(e) => updateTeachingAssignment(idx, { lecturer_id: e.target.value })}
-                            >
-                              <option value="">-- Select lecturer --</option>
-                              {lecturers.map(l => (
-                                <option key={l.id} value={l.id}>
-                                  {getLecturerLabel(l)}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div style={{ flex: 2, minWidth: "220px" }}>
-                            <label style={styles.label}>Scope</label>
-                            <select
-                              style={{ ...styles.select, marginBottom: 0 }}
-                              value={ta.scope}
-                              onChange={(e) => updateTeachingAssignment(idx, { scope: e.target.value, semester: "", group_id: "" })}
-                            >
-                              {TEACH_SCOPE.map(s => (
-                                <option key={s.value} value={s.value}>{s.label}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div style={{ display: "flex", alignItems: "end", paddingBottom: "1px" }}>
-                            <button type="button" style={styles.dangerMiniBtn} onClick={() => removeTeachingAssignment(idx)}>
-                              ×
-                            </button>
-                          </div>
-                        </div>
-
-                        <div style={{ ...styles.row, marginTop: "10px" }}>
-                          {showSemester && (
-                            <div style={{ flex: 1, minWidth: "160px" }}>
-                              <label style={styles.label}>Semester</label>
-                              <input
-                                type="number"
-                                style={{ ...styles.input, marginBottom: 0 }}
-                                value={ta.semester}
-                                onChange={(e) => updateTeachingAssignment(idx, { semester: e.target.value })}
-                                min="1"
-                                step="1"
-                                placeholder="e.g. 3"
-                              />
-                            </div>
-                          )}
-
-                          {showGroup && (
-                            <div style={{ flex: 2, minWidth: "240px" }}>
-                              <label style={styles.label}>Group</label>
-                              <select
-                                style={{ ...styles.select, marginBottom: 0 }}
-                                value={ta.group_id}
-                                onChange={(e) => updateTeachingAssignment(idx, { group_id: e.target.value })}
-                              >
-                                <option value="">-- Select group --</option>
-                                {groups.map(g => (
-                                  <option key={g.id} value={g.id}>
-                                    {g.name || g.group_name || `Group #${g.id}`}
-                                  </option>
-                                ))}
-                              </select>
-                              {groups.length === 0 && (
-                                <div style={styles.helpText}>
-                                  (No groups loaded. If you don’t have groups endpoint yet, it’s fine — we’ll add it later.)
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          <div style={{ flex: 3, minWidth: "240px" }}>
-                            <label style={styles.label}>Note (optional)</label>
-                            <input
-                              style={{ ...styles.input, marginBottom: 0 }}
-                              value={ta.note || ""}
-                              onChange={(e) => updateTeachingAssignment(idx, { note: e.target.value })}
-                              placeholder="e.g. teaches lab sessions / guest lecturer / group A only..."
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Existing: Linked specializations */}
             <div style={{ ...styles.formGroup, background: '#f9f9f9', padding: '15px', borderRadius: '6px', border: '1px solid #eee' }}>
               <label style={{ ...styles.label, marginBottom: '10px' }}>Linked Specializations</label>
               <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
@@ -962,7 +695,6 @@ export default function ModuleOverview({ onNavigate }) {
         </div>
       )}
 
-      {/* DELETE MODAL */}
       {showDeleteModal && (
         <DeleteConfirmationModal
           moduleName={moduleToDelete?.name}
@@ -974,7 +706,6 @@ export default function ModuleOverview({ onNavigate }) {
   );
 }
 
-// --- HELPER: Delete Confirmation Modal ---
 function DeleteConfirmationModal({ moduleName, onClose, onConfirm }) {
   const [input, setInput] = useState("");
   const isMatch = input === "DELETE";
