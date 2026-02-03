@@ -582,7 +582,7 @@ export default function ModuleOverview({ onNavigate }) {
               </div>
 
               <div style={styles.helpText}>
-                Add one or more assessment types and optionally set weights. Backend will normalize to 100%.
+                Add one or more assessment types and set weights. B
               </div>
 
               <div style={{ marginTop: "12px" }}>
