@@ -1,7 +1,6 @@
-const API_URL =
-  process.env.NODE_ENV === "production"
-    ? "https://icss-icss-team-xt8c.vercel.app"
-    : "http://127.0.0.1:8000";
+const API_URL = process.env.NODE_ENV === 'production'
+  ? "/api"
+  : "http://127.0.0.1:8000";
 
 const API_BASE_URL = API_URL.replace(/\/$/, "");
 
