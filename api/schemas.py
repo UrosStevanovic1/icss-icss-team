@@ -1,5 +1,4 @@
-from pydantic import BaseModel, Field
-
+from pydantic import BaseModel
 from typing import List, Optional, Any
 
 # --- AUTH ---
@@ -108,63 +107,31 @@ class SpecializationResponse(SpecializationBase):
         from_attributes = True
 
 # --- MODULES ---
-class AssessmentPart(BaseModel):
-    type: str
-    weight: Optional[int] = Field(default=None, ge=0, le=100)
-
-
-class LecturerAssignment(BaseModel):
-    lecturer_id: int
-    semester: int = Field(ge=1, le=20)   # keep wide (your system may have 1..8 etc)
-    group_id: Optional[int] = None
-    role: Optional[str] = None           # e.g. "Lecturer", "Assistant"
-    note: Optional[str] = None
-
 class ModuleBase(BaseModel):
     module_code: str
     name: str
     ects: int
     room_type: str
-    # legacy single-string or JSON stored in DB (we keep it)
     assessment_type: Optional[str] = None
     semester: int
     category: Optional[str] = None
     program_id: Optional[int] = None
 
 class ModuleCreate(ModuleBase):
-    # ✅ default ects = 5 if frontend doesn't send it
-    ects: int = 5
-
     specialization_ids: Optional[List[int]] = []
-
-    # ✅ NEW
-    assessment_breakdown: Optional[List[AssessmentPart]] = None
-    lecturer_assignments: Optional[List[LecturerAssignment]] = None
 
 class ModuleUpdate(BaseModel):
     name: Optional[str] = None
     ects: Optional[int] = None
     room_type: Optional[str] = None
-
-    # legacy field (still allowed)
     assessment_type: Optional[str] = None
-
-    # ✅ NEW
-    assessment_breakdown: Optional[List[AssessmentPart]] = None
-    lecturer_assignments: Optional[List[LecturerAssignment]] = None
-
     semester: Optional[int] = None
     category: Optional[str] = None
     program_id: Optional[int] = None
     specialization_ids: Optional[List[int]] = None
 
 class ModuleResponse(ModuleBase):
-    specializations: List["SpecializationResponse"] = []
-
-    # ✅ parsed/structured fields (frontend should use these)
-    assessment_breakdown: List[AssessmentPart] = []
-    lecturer_assignments: List[LecturerAssignment] = []
-
+    specializations: List[SpecializationResponse] = []
     class Config:
         from_attributes = True
 
