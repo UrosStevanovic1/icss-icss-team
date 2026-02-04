@@ -304,10 +304,10 @@ export default function ModuleOverview({ onNavigate }) {
   const validateBeforeSave = () => {
     if (!draft.module_code || !draft.name) {
       alert("Code and Name are required");
-      return false;
+      
       if (assessmentTotal !== 100) {
-  alert(`Assessment weights must total 100%. Current: ${assessmentTotal}%`);
-  return false;
+        alert(`Assessment weights must total 100%. Current: ${assessmentTotal}%`);
+        return false;
 }
 
     }
