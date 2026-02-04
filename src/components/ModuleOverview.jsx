@@ -20,7 +20,7 @@ const styles = {
   listContainer: { display: "flex", flexDirection: "column", gap: "12px" },
   listHeader: {
     display: "grid",
-    gridTemplateColumns: "80px 2fr 1.5fr 80px 100px 60px 1.2fr 1.2fr 110px",
+    gridTemplateColumns: "80px 2fr 1.5fr 80px 100px 60px 2.2fr 1.2fr 110px",
     gap: "15px",
     padding: "0 25px",
     marginBottom: "5px",
@@ -305,6 +305,11 @@ export default function ModuleOverview({ onNavigate }) {
     if (!draft.module_code || !draft.name) {
       alert("Code and Name are required");
       return false;
+      if (assessmentTotal !== 100) {
+  alert(`Assessment weights must total 100%. Current: ${assessmentTotal}%`);
+  return false;
+}
+
     }
 
     const ects = safeInt(draft.ects, 5);
@@ -438,7 +443,18 @@ export default function ModuleOverview({ onNavigate }) {
 
                 <div style={{ ...styles.centeredCell, fontWeight: 'bold', color: '#475569' }}>{m.ects}</div>
 
-               <div style={styles.cellText}>{formatAssessmentForList(m)}</div>
+               {(() => {
+  const assessmentText = formatAssessmentForList(m);
+  return (
+    <div
+      style={{ ...styles.cellText, whiteSpace: "normal", overflow: "visible", textOverflow: "clip" }}
+      title={assessmentText}
+    >
+      {assessmentText}
+    </div>
+  );
+})()}
+
 
 
                 <div style={styles.cellText}>{m.room_type}</div>
