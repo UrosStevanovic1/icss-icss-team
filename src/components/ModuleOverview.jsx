@@ -582,7 +582,7 @@ export default function ModuleOverview({ onNavigate }) {
               </div>
 
               <div style={styles.helpText}>
-                Add one or more assessment types and set weights. B
+                Add one or more assessment types and set weights. Total weight MUST be 100%.
               </div>
 
               <div style={{ marginTop: "12px" }}>

@@ -9,6 +9,11 @@ from ..permissions import role_of, is_admin_or_pm, hosp_program_ids
 
 router = APIRouter(prefix="/modules", tags=["modules"])
 
+def _to_dict(m, **kwargs):
+    if hasattr(m, "model_dump"):
+        return m.model_dump(**kwargs)
+    return m.dict(**kwargs)
+
 
 def _safe_json_load(s: Optional[str]) -> Optional[Any]:
     if not s or not isinstance(s, str):
@@ -157,7 +162,8 @@ def create_module(
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    data = p.model_dump()
+    data = _to_dict(p)
+
     spec_ids = data.pop("specialization_ids", None)
     assessment_breakdown = data.pop("assessment_breakdown", None)
 
@@ -211,7 +217,8 @@ def update_module(
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    data = p.model_dump(exclude_unset=True)
+    data = _to_dict(p, exclude_unset=True)
+
 
     if "specialization_ids" in data:
         spec_ids = data.pop("specialization_ids")
