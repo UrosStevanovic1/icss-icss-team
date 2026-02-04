@@ -127,6 +127,7 @@ class ModuleCreate(ModuleBase):
     assessment_breakdown: Optional[List[AssessmentPart]] = None
 
 
+
 class ModuleUpdate(BaseModel):
     name: Optional[str] = None
     ects: Optional[int] = None
@@ -139,13 +140,14 @@ class ModuleUpdate(BaseModel):
     specialization_ids: Optional[List[int]] = None
 
 
+
 class ModuleResponse(ModuleBase):
     assessment_breakdown: List[AssessmentPart] = []
     specializations: List[SpecializationResponse] = []
-   
 
     class Config:
         from_attributes = True
+
 
 # --- GROUPS ---
 class GroupBase(BaseModel):

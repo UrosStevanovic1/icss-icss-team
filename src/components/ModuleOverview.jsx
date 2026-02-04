@@ -580,6 +580,7 @@ export default function ModuleOverview({ onNavigate }) {
                   </button>
                 </div>
               </div>
+              
 
               <div style={styles.helpText}>
                 Add one or more assessment types and set weights. Total weight MUST be 100%.

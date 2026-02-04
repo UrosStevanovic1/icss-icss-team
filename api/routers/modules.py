@@ -9,10 +9,6 @@ from ..permissions import role_of, is_admin_or_pm, hosp_program_ids
 
 router = APIRouter(prefix="/modules", tags=["modules"])
 
-def _to_dict(m, **kwargs):
-    if hasattr(m, "model_dump"):
-        return m.model_dump(**kwargs)
-    return m.dict(**kwargs)
 
 
 def _safe_json_load(s: Optional[str]) -> Optional[Any]:
@@ -44,13 +40,18 @@ def _parse_module_payload(assessment_type_value: Optional[str]) -> dict:
 
     return {"assessments": [], "lecturer_assignments": []}
 
-
-def _normalize_assessments(breakdown: List[schemas.AssessmentPart]) -> List[dict]:
+def _normalize_assessments(breakdown) -> List[dict]:
     items = []
     seen = set()
 
     for x in breakdown or []:
-        t = (x.type or "").strip()
+        if isinstance(x, dict):
+            t = (x.get("type") or "").strip()
+            w = x.get("weight", None)
+        else:
+            t = (getattr(x, "type", "") or "").strip()
+            w = getattr(x, "weight", None)
+
         if not t:
             raise HTTPException(status_code=400, detail="Assessment type cannot be empty.")
         key = t.lower()
@@ -58,7 +59,6 @@ def _normalize_assessments(breakdown: List[schemas.AssessmentPart]) -> List[dict
             raise HTTPException(status_code=400, detail=f"Duplicate assessment type: {t}")
         seen.add(key)
 
-        w = getattr(x, "weight", None)
         if w is not None:
             try:
                 w = int(w)
@@ -109,6 +109,7 @@ def _normalize_assessments(breakdown: List[schemas.AssessmentPart]) -> List[dict
     if total != 100:
         raise HTTPException(status_code=400, detail=f"Assessment weights must sum to 100 (got {total}).")
     return items
+
 
 
 def _make_response(row: models.Module) -> schemas.ModuleResponse:
@@ -162,8 +163,7 @@ def create_module(
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    data = _to_dict(p)
-
+    data = p.model_dump()
     spec_ids = data.pop("specialization_ids", None)
     assessment_breakdown = data.pop("assessment_breakdown", None)
 
@@ -217,8 +217,7 @@ def update_module(
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    data = _to_dict(p, exclude_unset=True)
-
+    data = p.model_dump(exclude_unset=True)
 
     if "specialization_ids" in data:
         spec_ids = data.pop("specialization_ids")
