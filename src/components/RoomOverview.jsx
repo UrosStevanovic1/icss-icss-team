@@ -366,7 +366,10 @@ export default function RoomOverview({ currentUserRole }) {
               <th style={styles.th}>Details</th>
               <th style={styles.th}>Cap</th>
               <th style={{...styles.th, textAlign:'center'}}>Status</th>
-              <th style={{...styles.th, textAlign:'right'}}>Actions</th>
+              {canManageRooms && (
+  <th style={{...styles.th, textAlign:'right'}}>Actions</th>
+)}
+
             </tr>
           </thead>
           <tbody>
@@ -391,15 +394,15 @@ export default function RoomOverview({ currentUserRole }) {
                   </span>
                 </td>
 
-                <td style={{...styles.td, textAlign:'right', whiteSpace:'nowrap'}}>
-                  {/* ✅ Only PM/Admin see Edit/Delete */}
-                  {canManageRooms ? (
-                    <>
-                      <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(r)}>Edit</button>
-                      <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(r.id)}>Delete</button>
-                    </>
-                  ) : null}
-                </td>
+                {canManageRooms && (
+                  <td style={{...styles.td, textAlign:'right', whiteSpace:'nowrap'}}>
+    <>
+      <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(r)}>Edit</button>
+      <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(r.id)}>Delete</button>
+    </>
+  </td>
+)}
+
               </tr>
             ))}
           </tbody>
