@@ -24,9 +24,6 @@ class LecturerBase(BaseModel):
     phone: Optional[str] = None
     location: Optional[str] = None
     teaching_load: Optional[str] = None
-class AssessmentPart(BaseModel):
-    type: str
-    weight: Optional[int] = Field(default=None, ge=0, le=100)
 
 class LecturerCreate(LecturerBase):
     pass
@@ -111,6 +108,10 @@ class SpecializationResponse(SpecializationBase):
         from_attributes = True
 
 # --- MODULES ---
+class AssessmentPart(BaseModel):
+    type: str
+    weight: Optional[int] = Field(default=None, ge=0, le=100)
+
 class ModuleBase(BaseModel):
     module_code: str
     name: str
@@ -123,20 +124,25 @@ class ModuleBase(BaseModel):
 
 class ModuleCreate(ModuleBase):
     specialization_ids: Optional[List[int]] = []
+    assessment_breakdown: Optional[List[AssessmentPart]] = None
+
 
 class ModuleUpdate(BaseModel):
     name: Optional[str] = None
     ects: Optional[int] = None
     room_type: Optional[str] = None
     assessment_type: Optional[str] = None
+    assessment_breakdown: Optional[List[AssessmentPart]] = None
     semester: Optional[int] = None
     category: Optional[str] = None
     program_id: Optional[int] = None
     specialization_ids: Optional[List[int]] = None
 
+
 class ModuleResponse(ModuleBase):
-    specializations: List[SpecializationResponse] = []
     assessment_breakdown: List[AssessmentPart] = []
+    specializations: List[SpecializationResponse] = []
+   
 
     class Config:
         from_attributes = True
