@@ -60,15 +60,15 @@ const styles = {
   editBtn: { background: "#e2e8f0", color: "#475569" },
   deleteBtn: { background: "#fee2e2", color: "#ef4444" },
   overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
-  modal: { backgroundColor: "#ffffff", padding: "30px", borderRadius: "12px", width: "650px", maxWidth: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" },
+  modal: { backgroundColor: "#ffffff", padding: "30px", borderRadius: "12px", width: "700px", maxWidth: "95%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" },
   formGroup: { marginBottom: "15px" },
   label: { display: "block", marginBottom: "5px", fontWeight: "600", fontSize: "0.85rem", color: "#64748b" },
-  input: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", boxSizing: "border-box", marginBottom: "15px" },
-  select: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", background: "white", marginBottom: "15px" },
+  input: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", boxSizing: "border-box" },
+  select: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", background: "white" },
 };
 
 const STANDARD_ROOM_TYPES = ["Lecture Classroom", "Computer Lab", "Seminar"];
-const ASSESSMENT_TYPES = ["Written Exam", "Presentation", "Project", "Report"];
+const ASSESSMENT_OPTIONS = ["Written Exam", "Presentation", "Project", "Report", "Oral Exam", "Midterm"];
 const CATEGORY_TYPES = ["Core", "Shared", "Elective"];
 
 export default function ModuleOverview({ onNavigate }) {
@@ -83,15 +83,16 @@ export default function ModuleOverview({ onNavigate }) {
   const [formMode, setFormMode] = useState("overview");
   const [editingCode, setEditingCode] = useState(null);
   const [selectedSpecToAdd, setSelectedSpecToAdd] = useState("");
+  
   const [draft, setDraft] = useState({
     module_code: "", name: "", ects: 5, room_type: "Lecture Classroom", semester: 1,
-    assessment_type: "Written Exam", category: "Core", program_id: "", specialization_ids: []
+    assessments: [{ type: "Written Exam", weight: 100 }], // Updated to multiple
+    category: "Core", program_id: "", specialization_ids: []
   });
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [moduleToDelete, setModuleToDelete] = useState(null);
 
-  // --- ROLE LOGIC ---
   const [currentRole, setCurrentRole] = useState(() => {
     const raw = localStorage.getItem("userRole");
     return (raw || "").replace(/"/g, "").trim().toLowerCase();
@@ -100,20 +101,12 @@ export default function ModuleOverview({ onNavigate }) {
   useEffect(() => {
     const handleRoleUpdate = () => {
       const raw = localStorage.getItem("userRole");
-      const cleanRole = (raw || "").replace(/"/g, "").trim().toLowerCase();
-      setCurrentRole(cleanRole);
+      setCurrentRole((raw || "").replace(/"/g, "").trim().toLowerCase());
     };
-
     window.addEventListener("role-changed", handleRoleUpdate);
-    window.addEventListener("storage", handleRoleUpdate);
-
-    return () => {
-      window.removeEventListener("role-changed", handleRoleUpdate);
-      window.removeEventListener("storage", handleRoleUpdate);
-    };
+    return () => window.removeEventListener("role-changed", handleRoleUpdate);
   }, []);
 
-  // Permission Checks
   const canCreate = !["student", "lecturer"].includes(currentRole);
   const canModify = !["student", "lecturer", "hosp"].includes(currentRole);
 
@@ -131,7 +124,6 @@ export default function ModuleOverview({ onNavigate }) {
       setModules(Array.isArray(modData) ? modData : []);
       setPrograms(Array.isArray(progData) ? progData : []);
       setSpecializations(Array.isArray(specData) ? specData : []);
-
       const existingCustom = (Array.isArray(roomData) ? roomData : [])
         .map(r => r.type)
         .filter(t => t && !STANDARD_ROOM_TYPES.includes(t));
@@ -149,7 +141,8 @@ export default function ModuleOverview({ onNavigate }) {
     setSelectedSpecToAdd("");
     setDraft({
       module_code: "", name: "", ects: 5, room_type: "Lecture Classroom", semester: 1,
-      assessment_type: "Written Exam", category: "Core", program_id: "", specialization_ids: []
+      assessments: [{ type: "Written Exam", weight: 100 }],
+      category: "Core", program_id: "", specialization_ids: []
     });
     setFormMode("add");
   };
@@ -157,18 +150,59 @@ export default function ModuleOverview({ onNavigate }) {
   const openEdit = (m) => {
     setEditingCode(m.module_code);
     setSelectedSpecToAdd("");
+    
+    // Check if assessment_type is a string (old data) or JSON array
+    let parsedAssessments = [{ type: "Written Exam", weight: 100 }];
+    try {
+        if (m.assessment_type && m.assessment_type.startsWith('[')) {
+            parsedAssessments = JSON.parse(m.assessment_type);
+        } else if (m.assessment_type) {
+            parsedAssessments = [{ type: m.assessment_type, weight: 100 }];
+        }
+    } catch (e) { console.error("Parse error", e); }
+
     setDraft({
       module_code: m.module_code, name: m.name, ects: m.ects, room_type: m.room_type,
-      semester: m.semester, assessment_type: m.assessment_type || "Written Exam", category: m.category || "Core",
+      semester: m.semester, assessments: parsedAssessments, category: m.category || "Core",
       program_id: m.program_id ? String(m.program_id) : "",
       specialization_ids: (m.specializations || []).map(s => s.id)
     });
     setFormMode("edit");
   };
 
+  const addAssessmentRow = () => {
+      setDraft(prev => ({
+          ...prev,
+          assessments: [...prev.assessments, { type: "Project", weight: 0 }]
+      }));
+  };
+
+  const updateAssessmentRow = (index, field, value) => {
+      const newAssessments = [...draft.assessments];
+      newAssessments[index][field] = field === 'weight' ? parseInt(value) || 0 : value;
+      setDraft({ ...draft, assessments: newAssessments });
+  };
+
+  const removeAssessmentRow = (index) => {
+      setDraft(prev => ({
+          ...prev,
+          assessments: prev.assessments.filter((_, i) => i !== index)
+      }));
+  };
+
+  const totalWeight = draft.assessments.reduce((sum, item) => sum + item.weight, 0);
+
   const save = async () => {
     if (!draft.module_code || !draft.name) return alert("Code and Name are required");
-    const payload = { ...draft, ects: parseInt(draft.ects), semester: parseInt(draft.semester), program_id: draft.program_id ? parseInt(draft.program_id) : null };
+    if (totalWeight !== 100) return alert(`Total weight must be 100%. Current: ${totalWeight}%`);
+
+    const payload = { 
+        ...draft, 
+        ects: parseInt(draft.ects), 
+        semester: parseInt(draft.semester), 
+        program_id: draft.program_id ? parseInt(draft.program_id) : null,
+        assessment_type: JSON.stringify(draft.assessments) // Save as JSON string
+    };
 
     try {
       if (formMode === "add") await api.createModule(payload);
@@ -184,45 +218,33 @@ export default function ModuleOverview({ onNavigate }) {
   };
 
   const confirmDelete = async () => {
-    if (!moduleToDelete) return;
     try {
         await api.deleteModule(moduleToDelete.module_code);
         setShowDeleteModal(false);
-        setModuleToDelete(null);
         loadData();
     } catch (e) { alert("Error deleting module."); }
   };
 
   const linkSpecToDraft = () => {
-      if (!selectedSpecToAdd) return;
       const specId = parseInt(selectedSpecToAdd);
-      if (!draft.specialization_ids.includes(specId)) {
+      if (specId && !draft.specialization_ids.includes(specId)) {
           setDraft(prev => ({ ...prev, specialization_ids: [...prev.specialization_ids, specId] }));
       }
       setSelectedSpecToAdd("");
   };
 
-  const unlinkSpecFromDraft = (specId) => {
-      setDraft(prev => ({ ...prev, specialization_ids: prev.specialization_ids.filter(id => id !== specId) }));
-  };
-
-  const handleProgramClick = (programId) => {
-      if (programId && onNavigate) onNavigate("programs", { programId });
-  };
-
-  const getCategoryStyle = (cat) => {
-      if (cat === "Core") return styles.catCore;
-      if (cat === "Elective") return styles.catElective;
-      return styles.catShared;
+  const formatAssessmentDisplay = (jsonStr) => {
+      try {
+          const arr = JSON.parse(jsonStr);
+          return arr.map(a => `${a.type} (${a.weight}%)`).join(", ");
+      } catch { return jsonStr || "-"; }
   };
 
   return (
     <div style={styles.container}>
       <div style={styles.controlsBar}>
         <input style={styles.searchBar} placeholder="Search modules..." value={query} onChange={(e) => setQuery(e.target.value)} />
-        {canCreate && (
-            <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openAdd}>+ New Module</button>
-        )}
+        {canCreate && <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openAdd}>+ New Module</button>}
       </div>
 
       <div style={styles.listHeader}>
@@ -232,41 +254,25 @@ export default function ModuleOverview({ onNavigate }) {
         <div style={{textAlign: "center"}}>Semester</div>
         <div style={{textAlign: "center"}}>Category</div>
         <div style={{textAlign: "center"}}>ECTS</div>
-        <div>Assessment</div>
+        <div>Assessment Weighting</div>
         <div>Room Type</div>
         {canModify && <div style={{textAlign: 'right'}}>Action</div>}
       </div>
 
       <div style={styles.listContainer}>
-        {loading ? (
-            <div style={{textAlign: 'center', padding: '40px', color: '#64748b'}}>Loading modules...</div>
-        ) : (
+        {loading ? <div style={{textAlign: 'center', padding: '40px', color: '#64748b'}}>Loading modules...</div> : (
             filteredModules.map((m) => {
                 const prog = programs.find(p => p.id === m.program_id);
                 return (
-                <div
-                    key={m.module_code}
-                    style={{ ...styles.listCard, ...(hoverId === m.module_code ? styles.listCardHover : {}) }}
-                    onMouseEnter={() => setHoverId(m.module_code)}
-                    onMouseLeave={() => setHoverId(null)}
-                >
+                <div key={m.module_code} style={{ ...styles.listCard, ...(hoverId === m.module_code ? styles.listCardHover : {}) }} onMouseEnter={() => setHoverId(m.module_code)} onMouseLeave={() => setHoverId(null)}>
                     <div style={styles.codeText}>{m.module_code}</div>
                     <div style={styles.nameText}>{m.name}</div>
-                    <div>
-                        {prog ? (
-                            <span style={styles.programLink} onClick={(e) => { e.stopPropagation(); handleProgramClick(prog.id); }}>
-                                {prog.name}
-                            </span>
-                        ) : <span style={{...styles.cellText, fontStyle:'italic'}}>Global</span>}
-                    </div>
+                    <div style={styles.programLink} onClick={() => prog && onNavigate("programs", { programId: prog.id })}>{prog?.name || "Global"}</div>
                     <div style={styles.centeredCell}>{m.semester}</div>
-                    <div style={{textAlign: "center"}}>
-                        <span style={{...styles.catBadge, ...getCategoryStyle(m.category)}}>{m.category}</span>
-                    </div>
-                    <div style={{...styles.centeredCell, fontWeight:'bold', color:'#475569'}}>{m.ects}</div>
-                    <div style={styles.cellText}>{m.assessment_type || "-"}</div>
+                    <div style={{textAlign: "center"}}><span style={{...styles.catBadge, ...((m.category === "Core" ? styles.catCore : m.category === "Elective" ? styles.catElective : styles.catShared))}}>{m.category}</span></div>
+                    <div style={{...styles.centeredCell, fontWeight:'bold'}}>{m.ects}</div>
+                    <div style={{...styles.cellText, fontSize:'0.8rem'}}>{formatAssessmentDisplay(m.assessment_type)}</div>
                     <div style={styles.cellText}>{m.room_type}</div>
-
                     {canModify && (
                         <div style={styles.actionContainer}>
                             <button style={{...styles.actionBtn, ...styles.editBtn}} onClick={() => openEdit(m)}>Edit</button>
@@ -277,7 +283,6 @@ export default function ModuleOverview({ onNavigate }) {
                 );
             })
         )}
-        {!loading && filteredModules.length === 0 && <div style={{ color: "#94a3b8", padding: "40px", textAlign: "center", fontStyle: "italic" }}>No modules found.</div>}
       </div>
 
       {/* MODAL */}
@@ -290,69 +295,55 @@ export default function ModuleOverview({ onNavigate }) {
                 </div>
 
                 <div style={{display:'flex', gap:'15px'}}>
-                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Module Code</label><input style={styles.input} value={draft.module_code} onChange={(e) => setDraft({ ...draft, module_code: e.target.value })} disabled={formMode === "edit"} placeholder="CS101" /></div>
+                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Module Code</label><input style={styles.input} value={draft.module_code} onChange={(e) => setDraft({ ...draft, module_code: e.target.value })} disabled={formMode === "edit"} /></div>
                     <div style={{...styles.formGroup, flex:2}}><label style={styles.label}>Name</label><input style={styles.input} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></div>
                 </div>
 
                 <div style={{display:'flex', gap:'15px'}}>
-                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>ECTS</label><input type="number" style={styles.input} value={draft.ects} onChange={(e) => setDraft({ ...draft, ects: e.target.value })} /></div>
+                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>ECTS (Default: 5)</label><input type="number" style={styles.input} value={draft.ects} onChange={(e) => setDraft({ ...draft, ects: e.target.value })} /></div>
                     <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Semester</label><input type="number" style={styles.input} value={draft.semester} onChange={(e) => setDraft({ ...draft, semester: e.target.value })} /></div>
                     <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Category</label><select style={styles.select} value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })}>{CATEGORY_TYPES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                 </div>
 
-                <div style={{display:'flex', gap:'15px'}}>
-                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Room Type</label><select style={styles.select} value={draft.room_type} onChange={(e) => setDraft({...draft, room_type: e.target.value})}><optgroup label="Standard">{STANDARD_ROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</optgroup>{customRoomTypes.length > 0 && (<optgroup label="Custom">{customRoomTypes.map(t => <option key={t} value={t}>{t}</option>)}</optgroup>)}</select></div>
-                    <div style={{...styles.formGroup, flex:1}}><label style={styles.label}>Assessment</label><select style={styles.select} value={draft.assessment_type} onChange={(e) => setDraft({ ...draft, assessment_type: e.target.value })}>{ASSESSMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
-                </div>
+                <div style={styles.formGroup}><label style={styles.label}>Room Type</label><select style={styles.select} value={draft.room_type} onChange={(e) => setDraft({...draft, room_type: e.target.value})}><optgroup label="Standard">{STANDARD_ROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</optgroup>{customRoomTypes.length > 0 && (<optgroup label="Custom">{customRoomTypes.map(t => <option key={t} value={t}>{t}</option>)}</optgroup>)}</select></div>
 
-                <hr style={{margin:'20px 0', border:'0', borderTop:'1px solid #eee'}} />
-
-                <div style={styles.formGroup}>
-                    <label style={styles.label}>Study Program (Owner)</label>
-                    <select style={styles.select} value={draft.program_id} onChange={(e) => setDraft({ ...draft, program_id: e.target.value })}>
-                        <option value="">-- None / Global Module --</option>
-                        {programs.map(p => (<option key={p.id} value={p.id}>{p.name} ({p.level})</option>))}
-                    </select>
-                </div>
-
-                <div style={{...styles.formGroup, background: '#f9f9f9', padding: '15px', borderRadius: '6px', border:'1px solid #eee'}}>
-                    <label style={{...styles.label, marginBottom:'10px'}}>Linked Specializations</label>
-                    <div style={{display:'flex', gap:'10px', marginBottom:'15px'}}>
-                        <select style={styles.select} value={selectedSpecToAdd} onChange={(e) => setSelectedSpecToAdd(e.target.value)}>
-                            <option value="">-- Select Specialization --</option>
-                            {specializations.filter(s => !draft.specialization_ids.includes(s.id)).map(s => (<option key={s.id} value={s.id}>{s.name} ({s.acronym})</option>))}
-                        </select>
-                        <button type="button" style={{...styles.btn, ...styles.primaryBtn}} onClick={linkSpecToDraft}>Link</button>
+                {/* ASSESSMENT SECTION */}
+                <div style={{background:'#f8fafc', padding:'15px', borderRadius:'8px', border:'1px solid #e2e8f0', marginBottom:'20px'}}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
+                        <label style={{...styles.label, margin:0}}>Assessment Weighting</label>
+                        <button type="button" onClick={addAssessmentRow} style={{...styles.btn, background:'#10b981', color:'white', padding:'4px 10px', fontSize:'0.8rem'}}>+ Add Option</button>
                     </div>
-                    <div style={{maxHeight:'150px', overflowY:'auto', display:'flex', flexWrap:'wrap', gap:'8px'}}>
-                        {draft.specialization_ids.map(specId => {
-                            const spec = specializations.find(s => s.id === specId);
-                            if (!spec) return null;
-                            return (
-                                <div key={spec.id} style={{background:'white', border:'1px solid #ddd', padding:'4px 10px', borderRadius:'15px', fontSize:'0.85rem', display:'flex', alignItems:'center', gap:'8px'}}>
-                                    <span>{spec.name} ({spec.acronym})</span>
-                                    <button onClick={() => unlinkSpecFromDraft(spec.id)} style={{border:'none', background:'transparent', color:'#ef4444', cursor:'pointer', fontWeight:'bold'}}>×</button>
-                                </div>
-                            );
-                        })}
+                    {draft.assessments.map((item, idx) => (
+                        <div key={idx} style={{display:'flex', gap:'10px', marginBottom:'8px', alignItems:'center'}}>
+                            <select style={{...styles.select, marginBottom:0, flex:2}} value={item.type} onChange={(e) => updateAssessmentRow(idx, 'type', e.target.value)}>
+                                {ASSESSMENT_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                            <div style={{display:'flex', alignItems:'center', flex:1, gap:'5px'}}>
+                                <input type="number" style={{...styles.input, marginBottom:0}} value={item.weight} onChange={(e) => updateAssessmentRow(idx, 'weight', e.target.value)} />
+                                <span style={{fontSize:'0.9rem'}}>%</span>
+                            </div>
+                            {draft.assessments.length > 1 && (
+                                <button onClick={() => removeAssessmentRow(idx)} style={{background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'1.2rem'}}>×</button>
+                            )}
+                        </div>
+                    ))}
+                    <div style={{textAlign:'right', fontSize:'0.85rem', fontWeight:'bold', color: totalWeight === 100 ? '#10b981' : '#ef4444'}}>
+                        Total: {totalWeight}% {totalWeight !== 100 && "(Must be 100%)"}
                     </div>
                 </div>
+
+                <div style={styles.formGroup}><label style={styles.label}>Owner Program</label><select style={styles.select} value={draft.program_id} onChange={(e) => setDraft({ ...draft, program_id: e.target.value })}><option value="">-- Global --</option>{programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
 
                 <div style={{marginTop: '25px', display:'flex', justifyContent:'flex-end', gap:'10px'}}>
                     <button style={{...styles.btn, background:'#f8f9fa', border:'1px solid #ddd'}} onClick={() => setFormMode("overview")}>Cancel</button>
-                    <button style={{...styles.btn, ...styles.primaryBtn}} onClick={save}>Save</button>
+                    <button style={{...styles.btn, ...styles.primaryBtn}} onClick={save}>Save Changes</button>
                 </div>
             </div>
         </div>
       )}
 
-      {/* DELETE MODAL */}
       {showDeleteModal && (
-        <DeleteConfirmationModal
-            moduleName={moduleToDelete?.name}
-            onClose={() => setShowDeleteModal(false)}
-            onConfirm={confirmDelete}
-        />
+        <DeleteConfirmationModal moduleName={moduleToDelete?.name} onClose={() => setShowDeleteModal(false)} onConfirm={confirmDelete} />
       )}
     </div>
   );
@@ -360,29 +351,15 @@ export default function ModuleOverview({ onNavigate }) {
 
 function DeleteConfirmationModal({ moduleName, onClose, onConfirm }) {
     const [input, setInput] = useState("");
-    const isMatch = input === "DELETE";
-
     return (
         <div style={styles.overlay}>
-            <div style={{...styles.modal, width:'450px', maxHeight:'none'}}>
-                <h3 style={{ marginTop: 0, color: "#991b1b" }}>⚠️ Delete Module?</h3>
-                <p style={{ color: "#4b5563", marginBottom: "20px", lineHeight:'1.5' }}>
-                    Are you sure you want to delete <strong>{moduleName}</strong>?<br/>
-                    This action cannot be undone.
-                </p>
-                <p style={{ fontSize: "0.9rem", fontWeight: "bold", marginBottom: "8px", color:'#374151' }}>
-                    Type "DELETE" to confirm:
-                </p>
+            <div style={{...styles.modal, width:'400px'}}>
+                <h3 style={{color: "#991b1b"}}>Delete Module?</h3>
+                <p>Type "DELETE" to confirm removing <b>{moduleName}</b>.</p>
                 <input style={styles.input} value={input} onChange={e => setInput(e.target.value)} placeholder="DELETE" />
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                    <button style={{ ...styles.btn, background: "#e5e7eb", color: "#374151" }} onClick={onClose}>Cancel</button>
-                    <button
-                        disabled={!isMatch}
-                        style={{ ...styles.btn, background: isMatch ? "#dc2626" : "#fca5a5", color: "white", cursor: isMatch ? "pointer" : "not-allowed" }}
-                        onClick={onConfirm}
-                    >
-                        Permanently Delete
-                    </button>
+                <div style={{display: "flex", justifyContent: "flex-end", gap: "10px", marginTop:'20px'}}>
+                    <button style={styles.btn} onClick={onClose}>Cancel</button>
+                    <button disabled={input !== "DELETE"} style={{...styles.btn, background: input === "DELETE" ? "#dc2626" : "#fca5a5", color: "white"}} onClick={onConfirm}>Confirm</button>
                 </div>
             </div>
         </div>
