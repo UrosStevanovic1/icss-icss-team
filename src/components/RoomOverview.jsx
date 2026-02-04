@@ -120,7 +120,10 @@ const styles = {
 
 const STANDARD_TYPES = ["Lecture Classroom", "Computer Lab", "Seminar"];
 
-export default function RoomOverview() {
+export default function RoomOverview({ currentUserRole }) {
+  // ✅ Only PM/Admin can manage rooms (create/edit/delete)
+  const canManageRooms = currentUserRole === "pm" || currentUserRole === "admin";
+
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -183,6 +186,7 @@ export default function RoomOverview() {
   }, []);
 
   function openAdd() {
+    if (!canManageRooms) return; // ✅ guard
     setEditingId(null);
     setDraft({
       name: "",
@@ -197,6 +201,7 @@ export default function RoomOverview() {
   }
 
   function openEdit(r) {
+    if (!canManageRooms) return; // ✅ guard
     setEditingId(r.id);
     setDraft({
       name: r.name,
@@ -212,6 +217,7 @@ export default function RoomOverview() {
 
   // Add/Delete Type Logic
   function addNewType() {
+      if (!canManageRooms) return; // ✅ guard
       const newType = prompt("Enter new room type:");
       if (newType && newType.trim() !== "") {
           const formatted = newType.trim();
@@ -223,6 +229,7 @@ export default function RoomOverview() {
   }
 
   function deleteType() {
+      if (!canManageRooms) return; // ✅ guard
       if (!draft.type) return;
       if (STANDARD_TYPES.includes(draft.type)) return alert("Cannot delete standard room types.");
 
@@ -233,6 +240,8 @@ export default function RoomOverview() {
   }
 
   async function save() {
+    if (!canManageRooms) return; // ✅ guard
+
     if (!draft.name.trim() || !draft.capacity || !draft.type) {
       return alert("Name, Type, and Capacity are required.");
     }
@@ -266,6 +275,7 @@ export default function RoomOverview() {
   }
 
   async function remove(id) {
+    if (!canManageRooms) return; // ✅ guard
     if (!window.confirm("Are you sure you want to delete this room?")) return;
     try {
       await api.deleteRoom(id);
@@ -331,9 +341,13 @@ export default function RoomOverview() {
           <h2 style={styles.title}>{selectedCampus}</h2>
           <p style={{color: '#718096', margin: '5px 0 0 0'}}>Manage room availability and details</p>
         </div>
-        <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openAdd}>
-          + Add New Room
-        </button>
+
+        {/* ✅ Only PM/Admin see Add button */}
+        {canManageRooms && (
+          <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openAdd}>
+            + Add New Room
+          </button>
+        )}
       </div>
 
       <input
@@ -376,9 +390,15 @@ export default function RoomOverview() {
                     {r.available ? 'Available' : 'Occupied'}
                   </span>
                 </td>
+
                 <td style={{...styles.td, textAlign:'right', whiteSpace:'nowrap'}}>
-                  <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(r)}>Edit</button>
-                  <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(r.id)}>Delete</button>
+                  {/* ✅ Only PM/Admin see Edit/Delete */}
+                  {canManageRooms ? (
+                    <>
+                      <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(r)}>Edit</button>
+                      <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(r.id)}>Delete</button>
+                    </>
+                  ) : null}
                 </td>
               </tr>
             ))}
@@ -387,7 +407,7 @@ export default function RoomOverview() {
       )}
 
       {/* --- MODAL --- */}
-      {(formMode === "add" || formMode === "edit") && (
+      {canManageRooms && (formMode === "add" || formMode === "edit") && (
         <div style={styles.modalOverlay}>
             <div style={styles.modalContent}>
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems: 'center'}}>
