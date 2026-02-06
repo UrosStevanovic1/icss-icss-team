@@ -24,6 +24,11 @@ class LecturerBase(BaseModel):
     phone: Optional[str] = None
     location: Optional[str] = None
     teaching_load: Optional[str] = None
+class ModuleMini(BaseModel):
+    module_code: str
+    name: str
+    class Config:
+        from_attributes = True
 
 class LecturerCreate(LecturerBase):
     pass
@@ -47,8 +52,13 @@ class LecturerSelfUpdate(BaseModel):
 
 class LecturerResponse(LecturerBase):
     id: int
+    modules: List[ModuleMini] = []   
     class Config:
         from_attributes = True
+
+
+class LecturerModulesUpdate(BaseModel):
+    module_codes: List[str] = []
 
 # --- STUDY PROGRAMS ---
 class StudyProgramBase(BaseModel):

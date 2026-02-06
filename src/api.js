@@ -4,7 +4,6 @@ const API_URL = process.env.NODE_ENV === 'production'
 
 const API_BASE_URL = API_URL.replace(/\/$/, "");
 
-
 async function request(path, options = {}) {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${API_BASE_URL}${cleanPath}`;
@@ -27,9 +26,9 @@ async function request(path, options = {}) {
   if (!res.ok) {
     // If token expired (401), auto-logout
     if (res.status === 401) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("userRole");
-        window.location.href = "/"; // Force reload to login
+      localStorage.removeItem("token");
+      localStorage.removeItem("userRole");
+      window.location.href = "/"; // Force reload to login
     }
 
     try {
@@ -48,8 +47,8 @@ const api = {
   // --- AUTH ---
   login(email, password) {
     return request("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password })
+      method: "POST",
+      body: JSON.stringify({ email, password })
     });
   },
 
@@ -76,6 +75,17 @@ const api = {
   createLecturer(payload) { return request("/lecturers/", { method: "POST", body: JSON.stringify(payload) }); },
   updateLecturer(id, payload) { return request(`/lecturers/${id}`, { method: "PUT", body: JSON.stringify(payload) }); },
   deleteLecturer(id) { return request(`/lecturers/${id}`, { method: "DELETE" }); },
+
+  // ✅ NEW: LECTURER MODULE ASSIGNMENT
+  getLecturerModules(id) {
+    return request(`/lecturers/${id}/modules`);
+  },
+  setLecturerModules(id, module_codes) {
+    return request(`/lecturers/${id}/modules`, {
+      method: "PUT",
+      body: JSON.stringify({ module_codes })
+    });
+  },
 
   // ---------- GROUPS ----------
   getGroups() { return request("/groups/"); },
