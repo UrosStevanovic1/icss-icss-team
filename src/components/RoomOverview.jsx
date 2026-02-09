@@ -353,7 +353,7 @@ export default function RoomOverview() {
               <th style={styles.th}>Room Name</th>
               <th style={styles.th}>Type</th>
               <th style={styles.th}>Details</th>
-              <th style={styles.th}>Cap</th>
+              <th style={styles.th}>Capacity</th>
               <th style={{...styles.th, textAlign:'center'}}>Status</th>
               <th style={{...styles.th, textAlign:'right'}}>Actions</th>
             </tr>
