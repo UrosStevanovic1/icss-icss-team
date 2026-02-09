@@ -473,7 +473,7 @@ function ProgramWorkspace({ program, lecturers, specializations, modules, onBack
                 style={{ ...styles.tab, ...(activeTab === t ? styles.activeTab : {}) }}
                 onClick={() => setActiveTab(t)}
             >
-                {t === "INFO" ? "General Info" : t === "SPECS" ? `Specializations (${specializations.length})` : `Curriculum (${modules.length})`}
+                {t === "INFO" ? "General Info" : t === "SPECS" ? `Specializations (${specializations.length})` : `Modules (${modules.length})`}
             </div>
         ))}
       </div>
