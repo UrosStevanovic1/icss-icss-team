@@ -46,7 +46,7 @@ export default function ConstraintOverview() {
     is_enabled: true
   });
 
-  // BUILDER STATE (Temporary state for the dropdowns)
+  // BUILDER STATE
   const [builder, setBuilder] = useState({
     day: "Friday",
     roomType: "Computer Lab",
@@ -65,7 +65,6 @@ export default function ConstraintOverview() {
     const targetObj = targetList.find(t => String(t.id) === String(draft.target_id));
     const targetName = targetObj ? targetObj.name : "All Entities";
 
-    // Example: 'Room "Lab 101"' or 'Program "Business IT"'
     const entity = `${draft.scope} "${targetName}"`;
 
     let generatedText = "";
@@ -85,13 +84,12 @@ export default function ConstraintOverview() {
         generatedText = `${entity} cannot exceed ${builder.limit} of teaching per day.`;
         break;
       default:
-        // For "General", we don't overwrite manual typing
         return;
     }
 
     setDraft(prev => ({ ...prev, rule_text: generatedText }));
 
-  }, [draft.category, draft.scope, draft.target_id, builder, modalOpen, targets]); // ✅ FIXED: Added 'targets' dependency
+  }, [draft.category, draft.scope, draft.target_id, builder, modalOpen, targets]); // ✅ FIXED: Added 'targets' to dependency
 
   async function loadData() {
     try {
