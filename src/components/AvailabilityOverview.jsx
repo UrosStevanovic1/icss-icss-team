@@ -26,19 +26,27 @@ const styles = {
   expandedContent: { padding: "15px 20px", borderLeft: "4px solid #28a745" },
   modalOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 },
   modalContent: { background: "white", padding: "25px", borderRadius: "8px", width: "700px", maxWidth: "95%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 5px 15px rgba(0,0,0,0.3)" },
+
+  // Modal styles for delete confirmation (matching ProgramOverview)
+  input: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", marginBottom: "15px", boxSizing: "border-box" },
+  modal: { backgroundColor: "#ffffff", padding: "30px", borderRadius: "12px", width: "450px", maxWidth: "90%", maxHeight: "none", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }
 };
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function AvailabilityOverview() {
   const [lecturers, setLecturers] = useState([]);
-  const [availabilities, setAvailabilities] = useState([]); // Array of { lecturer_id, schedule_data }
+  const [availabilities, setAvailabilities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedLecturerId, setSelectedLecturerId] = useState(null);
   const [weekDraft, setWeekDraft] = useState({});
   const [expandedId, setExpandedId] = useState(null);
+
+  // --- Delete Modal State ---
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [lecturerToDelete, setLecturerToDelete] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -62,10 +70,8 @@ export default function AvailabilityOverview() {
     const draft = {};
     DAYS.forEach(day => {
       if (existingData && existingData[day]) {
-        // Use existing data
         draft[day] = existingData[day];
       } else {
-        // Default empty state
         draft[day] = {
           is_available: false,
           ranges: [{ start: "09:00", end: "17:00" }]
@@ -105,12 +111,23 @@ export default function AvailabilityOverview() {
     }
   }
 
-  async function remove(lecturerId) {
-    if (!window.confirm("Clear all availability rules for this lecturer?")) return;
+  // REPLACED: initiate deletion flow
+  function remove(lecturer) {
+    setLecturerToDelete(lecturer);
+    setShowDeleteModal(true);
+  }
+
+  // NEW: Actual delete API call
+  async function confirmDelete() {
+    if (!lecturerToDelete) return;
     try {
-      await api.deleteLecturerAvailability(lecturerId);
+      await api.deleteLecturerAvailability(lecturerToDelete.id);
+      setShowDeleteModal(false);
+      setLecturerToDelete(null);
       loadData();
-    } catch(e) { alert("Error deleting"); }
+    } catch(e) {
+      alert("Error deleting");
+    }
   }
 
   const toggleExpand = (id, e) => {
@@ -173,12 +190,11 @@ export default function AvailabilityOverview() {
           </thead>
           <tbody>
             {lecturers
-              .filter(l => availabilities.some(a => a.lecturer_id === l.id)) // Filter: Only show lecturers with schedules
+              .filter(l => availabilities.some(a => a.lecturer_id === l.id))
               .map(l => {
               const record = availabilities.find(a => a.lecturer_id === l.id);
               const schedule = record ? record.schedule_data : {};
 
-              // Calculate basic status for display
               let activeDays = 0;
               DAYS.forEach(d => { if (schedule[d]?.is_available) activeDays++; });
 
@@ -197,7 +213,7 @@ export default function AvailabilityOverview() {
                     <td style={styles.td}>
                       <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(l.id)}>Edit Schedule</button>
                       {record && (
-                        <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(l.id)}>Delete</button>
+                        <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(l)}>Delete</button>
                       )}
                     </td>
                   </tr>
@@ -247,6 +263,7 @@ export default function AvailabilityOverview() {
         </table>
       )}
 
+      {/* --- Main Edit/Add Modal --- */}
       {modalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -269,9 +286,7 @@ export default function AvailabilityOverview() {
                 <option value="">-- Select Lecturer --</option>
                 {lecturers
                   .filter(l => {
-                      // Filter: Only show if NO schedule exists, OR if it's the current one being edited
                       const hasSchedule = availabilities.some(a => a.lecturer_id === l.id);
-                      // FIXED: Using strict equality and ensuring types match
                       return !hasSchedule || l.id === parseInt(selectedLecturerId);
                   })
                   .map(l => (
@@ -350,6 +365,54 @@ export default function AvailabilityOverview() {
           </div>
         </div>
       )}
+
+      {/* --- Delete Confirmation Modal --- */}
+      {showDeleteModal && (
+        <DeleteConfirmationModal
+            title="Delete Availability?"
+            msg="This action cannot be undone. It will remove the entire schedule for this lecturer."
+            itemName={lecturerToDelete ? `${lecturerToDelete.first_name} ${lecturerToDelete.last_name}` : ""}
+            onClose={() => setShowDeleteModal(false)}
+            onConfirm={confirmDelete}
+        />
+      )}
     </div>
   );
+}
+
+// --- Reusable Component (Copied from ProgramOverview) ---
+function DeleteConfirmationModal({ title, msg, itemName, onClose, onConfirm }) {
+    const [input, setInput] = useState("");
+    const isMatch = input === "DELETE";
+
+    return (
+        <div style={styles.modalOverlay}>
+            <div style={styles.modal}>
+                <h3 style={{ marginTop: 0, color: "#991b1b" }}>{title}</h3>
+                <p style={{ color: "#4b5563", marginBottom: "20px", lineHeight:'1.5' }}>
+                    {msg} <br/>
+                    {itemName && <strong>{itemName}</strong>}
+                </p>
+                <p style={{ fontSize: "0.9rem", fontWeight: "bold", marginBottom: "8px", color:'#374151' }}>
+                    Type "DELETE" to confirm:
+                </p>
+                <input
+                    style={styles.input}
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    placeholder="DELETE"
+                />
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                    <button style={{ ...styles.btn, background: "#e5e7eb", color: "#374151" }} onClick={onClose}>Cancel</button>
+                    <button
+                        disabled={!isMatch}
+                        style={{ ...styles.btn, background: isMatch ? "#dc2626" : "#fca5a5", color: "white", cursor: isMatch ? "pointer" : "not-allowed" }}
+                        onClick={onConfirm}
+                    >
+                        Permanently Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 }
