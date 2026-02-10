@@ -58,6 +58,9 @@ const api = {
   updateProgram(id, payload) { return request(`/study-programs/${id}`, { method: "PUT", body: JSON.stringify(payload) }); },
   deleteProgram(id) { return request(`/study-programs/${id}`, { method: "DELETE" }); },
 
+   // ---------- DOMAINS ----------
+  getDomains() { return request("/domains/"); },
+  createDomain(payload) { return request("/domains/", { method: "POST", body: JSON.stringify(payload) }); },
   // ---------- SPECIALIZATIONS ----------
   getSpecializations() { return request("/specializations/"); },
   createSpecialization(payload) { return request("/specializations/", { method: "POST", body: JSON.stringify(payload) }); },

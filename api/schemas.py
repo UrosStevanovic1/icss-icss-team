@@ -2,8 +2,10 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Any
 from datetime import date
 
+# ------------------------------------------------------------
+# AUTH
+# ------------------------------------------------------------
 
-# --- AUTH ---
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -16,7 +18,29 @@ class Token(BaseModel):
     lecturer_id: Optional[int] = None
 
 
-# --- LECTURERS ---
+# ------------------------------------------------------------
+# DOMAINS
+# ------------------------------------------------------------
+
+class DomainBase(BaseModel):
+    name: str
+
+
+class DomainCreate(DomainBase):
+    pass
+
+
+class DomainResponse(DomainBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+# ------------------------------------------------------------
+# LECTURERS
+# ------------------------------------------------------------
+
 class LecturerBase(BaseModel):
     first_name: str
     last_name: Optional[str] = None
@@ -29,6 +53,7 @@ class LecturerBase(BaseModel):
     teaching_load: Optional[str] = None
 
 
+# Optional module mini (from file 1). Keep it to not break older responses.
 class ModuleMini(BaseModel):
     module_code: str
     name: str
@@ -38,7 +63,9 @@ class ModuleMini(BaseModel):
 
 
 class LecturerCreate(LecturerBase):
-    pass
+    # From file 2: domain label selected/created on frontend.
+    # Stored in domains table ONLY (not necessarily in lecturers table).
+    domain_name: Optional[str] = None
 
 
 class LecturerUpdate(BaseModel):
@@ -52,6 +79,9 @@ class LecturerUpdate(BaseModel):
     location: Optional[str] = None
     teaching_load: Optional[str] = None
 
+    # From file 2
+    domain_name: Optional[str] = None
+
 
 class LecturerSelfUpdate(BaseModel):
     personal_email: Optional[str] = None
@@ -60,17 +90,26 @@ class LecturerSelfUpdate(BaseModel):
 
 class LecturerResponse(LecturerBase):
     id: int
+
+    # From file 2: computed from mdh_email in models.Lecturer.domain property
+    domain: Optional[str] = None
+
+    # From file 1: keep modules if backend still returns them (harmless).
     modules: List[ModuleMini] = []
 
     class Config:
         from_attributes = True
 
 
+# From file 1: keep in case API still uses it
 class LecturerModulesUpdate(BaseModel):
     module_codes: List[str] = []
 
 
-# --- STUDY PROGRAMS ---
+# ------------------------------------------------------------
+# STUDY PROGRAMS
+# ------------------------------------------------------------
+
 class StudyProgramBase(BaseModel):
     name: str
     acronym: str
@@ -107,7 +146,10 @@ class StudyProgramResponse(StudyProgramBase):
         from_attributes = True
 
 
-# --- SPECIALIZATIONS ---
+# ------------------------------------------------------------
+# SPECIALIZATIONS
+# ------------------------------------------------------------
+
 class SpecializationBase(BaseModel):
     name: str
     acronym: str
@@ -137,7 +179,10 @@ class SpecializationResponse(SpecializationBase):
         from_attributes = True
 
 
-# --- MODULES ---
+# ------------------------------------------------------------
+# MODULES
+# ------------------------------------------------------------
+
 class AssessmentPart(BaseModel):
     type: str
     weight: Optional[int] = Field(default=None, ge=0, le=100)
@@ -179,7 +224,10 @@ class ModuleResponse(ModuleBase):
         from_attributes = True
 
 
-# --- GROUPS ---
+# ------------------------------------------------------------
+# GROUPS
+# ------------------------------------------------------------
+
 class GroupBase(BaseModel):
     name: str
     size: int
@@ -209,7 +257,10 @@ class GroupResponse(GroupBase):
         from_attributes = True
 
 
-# --- ROOMS ---
+# ------------------------------------------------------------
+# ROOMS
+# ------------------------------------------------------------
+
 class RoomBase(BaseModel):
     name: str
     capacity: int
@@ -239,7 +290,10 @@ class RoomResponse(RoomBase):
         from_attributes = True
 
 
-# --- AVAILABILITY ---
+# ------------------------------------------------------------
+# AVAILABILITY
+# ------------------------------------------------------------
+
 class AvailabilityUpdate(BaseModel):
     lecturer_id: int
     schedule_data: Any
@@ -254,18 +308,47 @@ class AvailabilityResponse(BaseModel):
         from_attributes = True
 
 
-# -------------------------------------------------------------------
-#  UPDATED SCHEDULER SCHEMAS
-# -------------------------------------------------------------------
+# ------------------------------------------------------------
+# CONSTRAINT TYPES (from file 2)
+# ------------------------------------------------------------
+
+class ConstraintTypeResponse(BaseModel):
+    id: int
+    name: str
+    active: bool = True
+    constraint_level: Optional[str] = None
+    constraint_format: Optional[str] = None
+    valid_from: Optional[Any] = None
+    valid_to: Optional[Any] = None
+    constraint_rule: Optional[str] = None
+    constraint_target: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ------------------------------------------------------------
+# SCHEDULER CONSTRAINTS (COMBINED)
+# ------------------------------------------------------------
 
 class SchedulerConstraintBase(BaseModel):
-    name: str
-    category: str
-    rule_text: str
+    # ---- New style (from file 1) ----
+    name: Optional[str] = None
+    category: Optional[str] = None
+    rule_text: Optional[str] = None
+
+    # ---- Old style (from file 2) ----
+    constraint_type_id: Optional[int] = None
+    hardness: Optional[str] = None
+    weight: Optional[int] = 10
+    config: Any = {}
+    notes: Optional[str] = None
+
+    # ---- Common ----
     scope: str
 
-    # ✅ CHANGED: Optional[int] -> Optional[str]
-    target_id: Optional[str] = "0"
+    # ✅ Prefer string IDs (supports module codes). Still okay for numeric strings.
+    target_id: Optional[str] = None
 
     valid_from: Optional[date] = None
     valid_to: Optional[date] = None
@@ -276,15 +359,22 @@ class SchedulerConstraintCreate(SchedulerConstraintBase):
     pass
 
 
-class SchedulerConstraintUpdate(SchedulerConstraintBase):
+class SchedulerConstraintUpdate(BaseModel):
+    # New style
     name: Optional[str] = None
     category: Optional[str] = None
     rule_text: Optional[str] = None
+
+    # Old style
+    constraint_type_id: Optional[int] = None
+    hardness: Optional[str] = None
+    weight: Optional[int] = None
+    config: Optional[Any] = None
+    notes: Optional[str] = None
+
+    # Common
     scope: Optional[str] = None
-
-    # ✅ CHANGED: Optional[str]
     target_id: Optional[str] = None
-
     valid_from: Optional[date] = None
     valid_to: Optional[date] = None
     is_enabled: Optional[bool] = None

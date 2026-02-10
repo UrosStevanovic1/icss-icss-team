@@ -96,15 +96,6 @@ function safeInt(v, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function assessmentSummaryFromDraft(draft) {
-  if (Array.isArray(draft.assessments) && draft.assessments.length > 0) {
-    return draft.assessments
-      .filter(a => a?.type)
-      .map(a => `${a.type}${a.weight !== "" && a.weight !== null && a.weight !== undefined ? ` (${safeInt(a.weight, 0)}%)` : ""}`)
-      .join(", ");
-  }
-  return draft.assessment_type || "-";
-}
 function formatAssessmentForList(m) {
   const ab = Array.isArray(m?.assessment_breakdown) ? m.assessment_breakdown : [];
   if (ab.length > 0) {
@@ -304,12 +295,12 @@ export default function ModuleOverview({ onNavigate }) {
   const validateBeforeSave = () => {
     if (!draft.module_code || !draft.name) {
       alert("Code and Name are required");
-      
-      if (assessmentTotal !== 100) {
-        alert(`Assessment weights must total 100%. Current: ${assessmentTotal}%`);
-        return false;
-}
+      return false;
+    }
 
+    if (assessmentTotal !== 100) {
+      alert(`Assessment weights must total 100%. Current: ${assessmentTotal}%`);
+      return false;
     }
 
     const ects = safeInt(draft.ects, 5);
@@ -443,19 +434,17 @@ export default function ModuleOverview({ onNavigate }) {
 
                 <div style={{ ...styles.centeredCell, fontWeight: 'bold', color: '#475569' }}>{m.ects}</div>
 
-               {(() => {
-  const assessmentText = formatAssessmentForList(m);
-  return (
-    <div
-      style={{ ...styles.cellText, whiteSpace: "normal", overflow: "visible", textOverflow: "clip" }}
-      title={assessmentText}
-    >
-      {assessmentText}
-    </div>
-  );
-})()}
-
-
+                {(() => {
+                  const assessmentText = formatAssessmentForList(m);
+                  return (
+                    <div
+                      style={{ ...styles.cellText, whiteSpace: "normal", overflow: "visible", textOverflow: "clip" }}
+                      title={assessmentText}
+                    >
+                      {assessmentText}
+                    </div>
+                  );
+                })()}
 
                 <div style={styles.cellText}>{m.room_type}</div>
 
@@ -546,6 +535,7 @@ export default function ModuleOverview({ onNavigate }) {
               </div>
             </div>
 
+            {/* ✅ Removed "Assessment (summary)" field */}
             <div style={{ display: 'flex', gap: '15px' }}>
               <div style={{ ...styles.formGroup, flex: 1 }}>
                 <label style={styles.label}>Room Type</label>
@@ -563,15 +553,6 @@ export default function ModuleOverview({ onNavigate }) {
                     </optgroup>
                   )}
                 </select>
-              </div>
-
-              <div style={{ ...styles.formGroup, flex: 1 }}>
-                <label style={styles.label}>Assessment (summary)</label>
-                <input
-                  style={styles.input}
-                  value={assessmentSummaryFromDraft(draft)}
-                  readOnly
-                />
               </div>
             </div>
 
@@ -596,7 +577,6 @@ export default function ModuleOverview({ onNavigate }) {
                   </button>
                 </div>
               </div>
-              
 
               <div style={styles.helpText}>
                 Add one or more assessment types and set weights. Total weight MUST be 100%.

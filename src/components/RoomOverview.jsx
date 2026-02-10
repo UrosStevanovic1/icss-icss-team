@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../api";
 
@@ -94,7 +95,18 @@ const styles = {
   backBtn: { background: "#edf2f7", color: "#4a5568", marginBottom: "10px" },
   editBtn: { background: "#718096", color: "white", marginRight: "5px" },
   deleteBtn: { background: "#e53e3e", color: "white" },
-  iconBtn: { padding: "8px", width:"40px", cursor: "pointer", border: "1px solid #ccc", borderRadius: "4px", background:"#f0f0f0", display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.1rem' },
+  iconBtn: {
+    padding: "8px",
+    width: "40px",
+    cursor: "pointer",
+    border: "1px solid #ccc",
+    borderRadius: "4px",
+    background: "#f0f0f0",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "1.1rem",
+  },
 
   modalOverlay: {
     position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -120,18 +132,41 @@ const styles = {
 const STANDARD_TYPES = ["Lecture Classroom", "Computer Lab", "Seminar"];
 const CAMPUSES = ["Berlin", "Dusseldorf", "Munich"];
 
+// helper: read role safely
+function getCleanRole() {
+  const raw = localStorage.getItem("userRole");
+  return (raw || "").replace(/"/g, "").trim().toLowerCase();
+}
+
 export default function RoomOverview() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
-  // --- USER PROFILE LOGIC ---
+  // --- ROLE (same pattern as your GroupOverview) ---
+  const [currentRole, setCurrentRole] = useState(() => getCleanRole());
+
+  useEffect(() => {
+    const handleRoleUpdate = () => setCurrentRole(getCleanRole());
+    window.addEventListener("role-changed", handleRoleUpdate);
+    window.addEventListener("storage", handleRoleUpdate);
+    return () => {
+      window.removeEventListener("role-changed", handleRoleUpdate);
+      window.removeEventListener("storage", handleRoleUpdate);
+    };
+  }, []);
+
+  // ✅ Only Admin + PM can manage
+  // covers values like: "pm", "admin", "program manager (admin)"
+  const canManageRooms = currentRole === "pm" || currentRole.includes("admin");
+
+  // --- USER PROFILE LOGIC (campus only, not role) ---
   const [userProfile] = useState({
     name: "Stephanie",
-    homeCampus: "Berlin"
+    homeCampus: "Berlin",
   });
 
-  // Automatically start at Stephanie's home campus
+  // Automatically start at user's home campus
   const [selectedCampus, setSelectedCampus] = useState(userProfile.homeCampus);
 
   const [formMode, setFormMode] = useState("overview");
@@ -148,7 +183,6 @@ export default function RoomOverview() {
     equipment: ""
   });
 
-  // WRAPPED IN useCallback TO FIX LINT/BUILD ERROR
   const loadRooms = useCallback(async () => {
     setLoading(true);
     try {
@@ -161,10 +195,10 @@ export default function RoomOverview() {
         const derivedSpecific = parts.length > 1 ? parts.slice(1).join(" - ") : "";
 
         return {
-            ...r,
-            available: r.status,
-            campus: CAMPUSES.includes(derivedCampus) ? derivedCampus : "Other",
-            specific_location: derivedSpecific
+          ...r,
+          available: r.status,
+          campus: CAMPUSES.includes(derivedCampus) ? derivedCampus : "Other",
+          specific_location: derivedSpecific
         };
       });
 
@@ -180,13 +214,14 @@ export default function RoomOverview() {
     } finally {
       setLoading(false);
     }
-  }, []); // Empty dependency array is safe because CAMPUSES is now external constant
+  }, []);
 
   useEffect(() => {
     loadRooms();
-  }, [loadRooms]); // Now safe to include loadRooms
+  }, [loadRooms]);
 
   function openAdd() {
+    if (!canManageRooms) return; // 🔒 guard
     setEditingId(null);
     setDraft({
       name: "",
@@ -201,6 +236,7 @@ export default function RoomOverview() {
   }
 
   function openEdit(r) {
+    if (!canManageRooms) return; // 🔒 guard
     setEditingId(r.id);
     setDraft({
       name: r.name,
@@ -215,33 +251,37 @@ export default function RoomOverview() {
   }
 
   function addNewType() {
-      const newType = prompt("Enter new room type:");
-      if (newType && newType.trim() !== "") {
-          const formatted = newType.trim();
-          if (!STANDARD_TYPES.includes(formatted) && !customTypes.includes(formatted)) {
-              setCustomTypes([...customTypes, formatted].sort());
-          }
-          setDraft({ ...draft, type: formatted });
+    if (!canManageRooms) return; // 🔒 guard
+    const newType = prompt("Enter new room type:");
+    if (newType && newType.trim() !== "") {
+      const formatted = newType.trim();
+      if (!STANDARD_TYPES.includes(formatted) && !customTypes.includes(formatted)) {
+        setCustomTypes([...customTypes, formatted].sort());
       }
+      setDraft({ ...draft, type: formatted });
+    }
   }
 
   function deleteType() {
-      if (!draft.type) return;
-      if (STANDARD_TYPES.includes(draft.type)) return alert("Cannot delete standard room types.");
-      if (window.confirm(`Remove "${draft.type}" from the list?`)) {
-          setCustomTypes(customTypes.filter(t => t !== draft.type));
-          setDraft({ ...draft, type: "" });
-      }
+    if (!canManageRooms) return; // 🔒 guard
+    if (!draft.type) return;
+    if (STANDARD_TYPES.includes(draft.type)) return alert("Cannot delete standard room types.");
+    if (window.confirm(`Remove "${draft.type}" from the list?`)) {
+      setCustomTypes(customTypes.filter(t => t !== draft.type));
+      setDraft({ ...draft, type: "" });
+    }
   }
 
   async function save() {
+    if (!canManageRooms) return; // 🔒 guard
+
     if (!draft.name.trim() || !draft.capacity || !draft.type) {
       return alert("Name, Type, and Capacity are required.");
     }
 
     const finalLocation = draft.specific_location
-        ? `${draft.campus} - ${draft.specific_location}`
-        : draft.campus;
+      ? `${draft.campus} - ${draft.specific_location}`
+      : draft.campus;
 
     const payload = {
       name: draft.name.trim(),
@@ -267,6 +307,7 @@ export default function RoomOverview() {
   }
 
   async function remove(id) {
+    if (!canManageRooms) return; // 🔒 guard
     if (!window.confirm("Are you sure you want to delete this room?")) return;
     try {
       await api.deleteRoom(id);
@@ -289,9 +330,9 @@ export default function RoomOverview() {
   if (!selectedCampus) {
     return (
       <div style={styles.container}>
-        <div style={{textAlign: 'center', marginBottom: '40px'}}>
-          <h1 style={{fontSize: '2.5rem', color: '#1a202c', marginBottom: '10px'}}>Campus Management</h1>
-          <p style={{color: '#718096'}}>Select a location to view rooms</p>
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <h1 style={{ fontSize: '2.5rem', color: '#1a202c', marginBottom: '10px' }}>Campus Management</h1>
+          <p style={{ color: '#718096' }}>Select a location to view rooms</p>
         </div>
         <div style={styles.campusGrid}>
           {CAMPUSES.map(campus => (
@@ -308,9 +349,9 @@ export default function RoomOverview() {
                 e.currentTarget.style.transform = "translateY(0)";
               }}
             >
-              <span style={{fontSize: '3rem', marginBottom: '15px'}}>🏢</span>
-              <h3 style={{margin: 0, color: '#2d3748'}}>{campus} {campus === userProfile.homeCampus && ""}</h3>
-              <p style={{fontSize: '0.9rem', color: '#a0aec0', marginTop: '10px'}}>
+              <span style={{ fontSize: '3rem', marginBottom: '15px' }}>🏢</span>
+              <h3 style={{ margin: 0, color: '#2d3748' }}>{campus}</h3>
+              <p style={{ fontSize: '0.9rem', color: '#a0aec0', marginTop: '10px' }}>
                 {rooms.filter(r => r.campus === campus).length} Rooms Registered
               </p>
             </div>
@@ -323,20 +364,27 @@ export default function RoomOverview() {
   // --- VIEW 2: ROOM OVERVIEW ---
   return (
     <div style={styles.container}>
-      <button style={{...styles.btn, ...styles.backBtn}} onClick={() => setSelectedCampus(null)}>
+      <button style={{ ...styles.btn, ...styles.backBtn }} onClick={() => setSelectedCampus(null)}>
         ← Switch Campus (Your default: {userProfile.homeCampus})
       </button>
 
       <div style={styles.header}>
         <div>
           <h2 style={styles.title}>{selectedCampus}</h2>
-          <p style={{color: '#718096', margin: '5px 0 0 0'}}>
+          <p style={{ color: '#718096', margin: '5px 0 0 0' }}>
             {selectedCampus === userProfile.homeCampus ? "Showing your home location" : "Viewing alternate location"}
           </p>
+          <p style={{ color: '#a0aec0', margin: '6px 0 0 0', fontSize: '0.9rem' }}>
+            Logged in as: <strong>{currentRole || "unknown"}</strong>
+          </p>
         </div>
-        <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openAdd}>
-          + Add New Room
-        </button>
+
+        {/* ✅ Only Admin/PM see Add button */}
+        {canManageRooms && (
+          <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={openAdd}>
+            + Add New Room
+          </button>
+        )}
       </div>
 
       <input
@@ -354,14 +402,21 @@ export default function RoomOverview() {
               <th style={styles.th}>Type</th>
               <th style={styles.th}>Details</th>
               <th style={styles.th}>Capacity</th>
-              <th style={{...styles.th, textAlign:'center'}}>Status</th>
-              <th style={{...styles.th, textAlign:'right'}}>Actions</th>
+              <th style={{ ...styles.th, textAlign: 'center' }}>Status</th>
+
+              {/* ✅ Only Admin/PM see Actions column */}
+              {canManageRooms && (
+                <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+              )}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{...styles.td, textAlign: 'center', padding: '50px', color: '#a0aec0'}}>
+                <td
+                  colSpan={canManageRooms ? 6 : 5}
+                  style={{ ...styles.td, textAlign: 'center', padding: '50px', color: '#a0aec0' }}
+                >
                   No rooms found.
                 </td>
               </tr>
@@ -370,19 +425,23 @@ export default function RoomOverview() {
                 <td style={styles.td}><strong>{r.name}</strong></td>
                 <td style={styles.td}>{r.type}</td>
                 <td style={styles.td}>
-                    {r.specific_location && <div style={{fontSize:'0.85rem', color:'#666'}}>{r.specific_location}</div>}
-                    {r.equipment && <div style={{fontSize:'0.8rem', color:'#999', fontStyle:'italic'}}>{r.equipment}</div>}
+                  {r.specific_location && <div style={{ fontSize: '0.85rem', color: '#666' }}>{r.specific_location}</div>}
+                  {r.equipment && <div style={{ fontSize: '0.8rem', color: '#999', fontStyle: 'italic' }}>{r.equipment}</div>}
                 </td>
                 <td style={styles.td}>{r.capacity}</td>
-                <td style={{...styles.td, textAlign:'center'}}>
+                <td style={{ ...styles.td, textAlign: 'center' }}>
                   <span style={styles.statusBadge(r.available)}>
                     {r.available ? 'Available' : 'Unavailable'}
                   </span>
                 </td>
-                <td style={{...styles.td, textAlign:'right', whiteSpace:'nowrap'}}>
-                  <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(r)}>Edit</button>
-                  <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(r.id)}>Delete</button>
-                </td>
+
+                {/* ✅ Only Admin/PM see Edit/Delete */}
+                {canManageRooms && (
+                  <td style={{ ...styles.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <button style={{ ...styles.btn, ...styles.editBtn }} onClick={() => openEdit(r)}>Edit</button>
+                    <button style={{ ...styles.btn, ...styles.deleteBtn }} onClick={() => remove(r.id)}>Delete</button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -392,78 +451,126 @@ export default function RoomOverview() {
       {/* --- MODAL --- */}
       {(formMode === "add" || formMode === "edit") && (
         <div style={styles.modalOverlay}>
-            <div style={styles.modalContent}>
-                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems: 'center'}}>
-                    <h3 style={{margin:0, fontSize: '1.4rem'}}>{formMode === "add" ? "Add New Room" : "Edit Room"}</h3>
-                    <button onClick={() => setFormMode("overview")} style={{border:'none', background:'transparent', fontSize:'1.8rem', cursor:'pointer', color: '#a0aec0'}}>×</button>
-                </div>
-
-                <div style={{background: '#f7fafc', padding: '10px', borderRadius: '6px', marginBottom: '20px', fontSize: '0.9rem'}}>
-                  Location: <strong>{selectedCampus}</strong>
-                </div>
-
-                <div style={styles.formGroup}>
-                    <label style={styles.label}>Room Name</label>
-                    <input style={styles.input} value={draft.name} onChange={e => setDraft({...draft, name: e.target.value})} placeholder="e.g. Science Lab 102" />
-                </div>
-
-                <div style={styles.formGroup}>
-                    <label style={styles.label}>Room Type</label>
-                    <div style={{display:'flex', gap:'8px'}}>
-                        <select
-                            style={{...styles.input, flex:1}}
-                            value={draft.type}
-                            onChange={(e) => setDraft({ ...draft, type: e.target.value })}
-                        >
-                            <option value="">-- Select Room Type --</option>
-                            <optgroup label="Standard">
-                                {STANDARD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                            </optgroup>
-                            {customTypes.length > 0 && (
-                                <optgroup label="Custom">
-                                    {customTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                                </optgroup>
-                            )}
-                        </select>
-                        <button type="button" title="Add Type" onClick={addNewType} style={styles.iconBtn}>+</button>
-                        <button
-                            type="button" title="Delete Type" onClick={deleteType}
-                            disabled={!customTypes.includes(draft.type)}
-                            style={{...styles.iconBtn, opacity: customTypes.includes(draft.type) ? 1 : 0.5}}
-                        >🗑</button>
-                    </div>
-                </div>
-
-                <div style={styles.formGroup}>
-                    <label style={styles.label}>Capacity</label>
-                    <input type="number" style={styles.input} value={draft.capacity} onChange={e => setDraft({...draft, capacity: e.target.value})} placeholder="0" />
-                </div>
-
-                <div style={{display:'flex', gap:'15px', marginBottom:'20px'}}>
-                    <div style={{flex:1}}>
-                        <label style={styles.label}>Specific Details (Floor/Wing)</label>
-                        <input style={styles.input} value={draft.specific_location} onChange={e => setDraft({...draft, specific_location: e.target.value})} placeholder="e.g. Floor 2" />
-                    </div>
-                    <div style={{flex:1}}>
-                        <label style={styles.label}>Equipment</label>
-                        <input style={styles.input} value={draft.equipment} onChange={e => setDraft({...draft, equipment: e.target.value})} placeholder="Projector, PC..." />
-                    </div>
-                </div>
-
-                <div style={styles.formGroup}>
-                    <label style={styles.checkboxWrapper}>
-                        <input type="checkbox" checked={draft.available} style={{width: '18px', height: '18px'}} onChange={e => setDraft({...draft, available: e.target.checked})} />
-                        Mark room as available for booking
-                    </label>
-                </div>
-
-                <div style={{marginTop: '30px', display:'flex', justifyContent:'flex-end', gap:'12px'}}>
-                    <button style={{...styles.btn, background: '#fff', border: '1px solid #cbd5e0'}} onClick={() => setFormMode("overview")}>Cancel</button>
-                    <button style={{...styles.btn, ...styles.primaryBtn}} onClick={save}>
-                        {formMode === "add" ? "Create Room" : "Update Details"}
-                    </button>
-                </div>
+          <div style={styles.modalContent}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.4rem' }}>
+                {formMode === "add" ? "Add New Room" : "Edit Room"}
+              </h3>
+              <button
+                onClick={() => setFormMode("overview")}
+                style={{ border: 'none', background: 'transparent', fontSize: '1.8rem', cursor: 'pointer', color: '#a0aec0' }}
+              >
+                ×
+              </button>
             </div>
+
+            <div style={{ background: '#f7fafc', padding: '10px', borderRadius: '6px', marginBottom: '20px', fontSize: '0.9rem' }}>
+              Location: <strong>{selectedCampus}</strong>
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Room Name</label>
+              <input
+                style={styles.input}
+                value={draft.name}
+                onChange={e => setDraft({ ...draft, name: e.target.value })}
+                placeholder="e.g. Science Lab 102"
+              />
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Room Type</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  style={{ ...styles.input, flex: 1 }}
+                  value={draft.type}
+                  onChange={(e) => setDraft({ ...draft, type: e.target.value })}
+                >
+                  <option value="">-- Select Room Type --</option>
+                  <optgroup label="Standard">
+                    {STANDARD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </optgroup>
+                  {customTypes.length > 0 && (
+                    <optgroup label="Custom">
+                      {customTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    </optgroup>
+                  )}
+                </select>
+
+                {/* ✅ Only Admin/PM can manage types */}
+                {canManageRooms && (
+                  <>
+                    <button type="button" title="Add Type" onClick={addNewType} style={styles.iconBtn}>+</button>
+                    <button
+                      type="button"
+                      title="Delete Type"
+                      onClick={deleteType}
+                      disabled={!customTypes.includes(draft.type)}
+                      style={{ ...styles.iconBtn, opacity: customTypes.includes(draft.type) ? 1 : 0.5 }}
+                    >
+                      🗑
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Capacity</label>
+              <input
+                type="number"
+                style={styles.input}
+                value={draft.capacity}
+                onChange={e => setDraft({ ...draft, capacity: e.target.value })}
+                placeholder="0"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={styles.label}>Specific Details (Floor/Wing)</label>
+                <input
+                  style={styles.input}
+                  value={draft.specific_location}
+                  onChange={e => setDraft({ ...draft, specific_location: e.target.value })}
+                  placeholder="e.g. Floor 2"
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={styles.label}>Equipment</label>
+                <input
+                  style={styles.input}
+                  value={draft.equipment}
+                  onChange={e => setDraft({ ...draft, equipment: e.target.value })}
+                  placeholder="Projector, PC..."
+                />
+              </div>
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.checkboxWrapper}>
+                <input
+                  type="checkbox"
+                  checked={draft.available}
+                  style={{ width: '18px', height: '18px' }}
+                  onChange={e => setDraft({ ...draft, available: e.target.checked })}
+                />
+                Mark room as available for booking
+              </label>
+            </div>
+
+            <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                style={{ ...styles.btn, background: '#fff', border: '1px solid #cbd5e0' }}
+                onClick={() => setFormMode("overview")}
+              >
+                Cancel
+              </button>
+              <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={save}>
+                {formMode === "add" ? "Create Room" : "Update Details"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
