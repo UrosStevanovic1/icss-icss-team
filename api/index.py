@@ -1,57 +1,66 @@
+# api/index.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .database import engine, Base
+import datetime
 
-# --- IMPORTAMOS TODOS LOS ROUTERS ---
-from .routers import (
-    auth_routes,
-    programs,
-    modules,
-    lecturers,
-    rooms,
-    groups,
-    specializations,
-    constraints,
-    availabilities,
-    semesters,        # El de Shayan
-    offered_modules   # ✅ EL TUYO (Faltaba incluirlo aquí)
-)
+from .database import engine
+from . import models
 
-# Crear las tablas en la BD si no existen
-Base.metadata.create_all(bind=engine)
+# Importamos routers
+from .routers.dev import router as dev_router
+from .routers.auth_routes import router as auth_router
+from .routers.programs import router as programs_router
+from .routers.lecturers import router as lecturers_router
+from .routers.modules import router as modules_router
+from .routers.specializations import router as specializations_router
+from .routers.groups import router as groups_router
+from .routers.rooms import router as rooms_router
+from .routers.constraints import router as constraints_router
+from .routers.availabilities import router as availabilities_router
+from .routers.semesters import router as semesters_router
+# ✅ AGREGAMOS ESTA LÍNEA:
+from .routers.offered_modules import router as offered_modules_router
 
-app = FastAPI()
+# Crear tablas
+try:
+    models.Base.metadata.create_all(bind=engine)
+    print("✅ DB connected.")
+except Exception as e:
+    print("❌ DB Startup Error:", e)
 
-# Configuración de CORS (Permitir que React hable con Python)
-origins = [
-    "http://localhost:3000",
-    "https://icss-icss-team-sage.vercel.app",  # URL de producción aproximada
-    "*"
-]
+app = FastAPI(title="Study Program Backend", root_path="/api")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- CONECTAMOS LOS ROUTERS A LA APP PRINCIPAL ---
-app.include_router(auth_routes.router)
-app.include_router(programs.router)
-app.include_router(modules.router)
-app.include_router(lecturers.router)
-app.include_router(rooms.router)
-app.include_router(groups.router)
-app.include_router(specializations.router)
-app.include_router(constraints.router)
-app.include_router(availabilities.router)
-app.include_router(semesters.router)
-
-# ✅ AQUÍ ESTABA EL PROBLEMA: Faltaba esta línea
-app.include_router(offered_modules.router) 
-
 @app.get("/")
-def read_root():
-    return {"message": "Welcome to ICSS Scheduler API"}
+def root():
+    return {"message": "Backend Online"}
+
+@app.get("/version")
+def check_version():
+    return {
+        "status": "NUEVA VERSION DESPLEGADA",
+        "timestamp": str(datetime.datetime.now()),
+        "instruction": "Si lees esto, el código se actualizó correctamente."
+    }
+
+# Include routers
+app.include_router(dev_router)
+app.include_router(auth_router)
+app.include_router(programs_router)
+app.include_router(lecturers_router)
+app.include_router(modules_router)
+app.include_router(specializations_router)
+app.include_router(groups_router)
+app.include_router(rooms_router)
+app.include_router(constraints_router)
+app.include_router(availabilities_router)
+app.include_router(semesters_router)
+# ✅ Y AGREGAMOS ESTA LÍNEA AL FINAL:
+app.include_router(offered_modules_router)
