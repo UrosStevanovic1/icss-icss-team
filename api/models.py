@@ -19,6 +19,7 @@ lecturer_modules = Table(
     Column("module_code", String, ForeignKey("modules.module_code", ondelete="CASCADE"), primary_key=True),
 )
 
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -28,6 +29,7 @@ class User(Base):
     lecturer_id = Column(Integer, ForeignKey("lecturers.ID"), nullable=True)
 
     lecturer_profile = relationship("Lecturer")
+
 
 class Lecturer(Base):
     __tablename__ = "lecturers"
@@ -42,6 +44,7 @@ class Lecturer(Base):
     location = Column(String(200), nullable=True)
     teaching_load = Column(String(100), nullable=True)
     modules = relationship("Module", secondary=lecturer_modules, back_populates="lecturers")
+
 
 class StudyProgram(Base):
     __tablename__ = "study_programs"
@@ -58,6 +61,7 @@ class StudyProgram(Base):
 
     head_lecturer = relationship("Lecturer")
 
+
 class Module(Base):
     __tablename__ = "modules"
     module_code = Column(String, primary_key=True, index=True)
@@ -72,6 +76,7 @@ class Module(Base):
     specializations = relationship("Specialization", secondary=module_specializations, back_populates="modules")
     lecturers = relationship("Lecturer", secondary=lecturer_modules, back_populates="modules")
 
+
 class Specialization(Base):
     __tablename__ = "specializations"
     id = Column(Integer, primary_key=True, index=True)
@@ -84,6 +89,7 @@ class Specialization(Base):
 
     modules = relationship("Module", secondary=module_specializations, back_populates="specializations")
 
+
 class Group(Base):
     __tablename__ = "groups"
     id = Column(Integer, primary_key=True, index=True)
@@ -93,6 +99,7 @@ class Group(Base):
     email = Column("Email", String(200), nullable=True)
     program = Column("Program", String, nullable=True)
     parent_group = Column("Parent_Group", String, nullable=True)
+
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -104,11 +111,13 @@ class Room(Base):
     equipment = Column("Equipment", String, nullable=True)
     location = Column(String(200), nullable=True)
 
+
 class LecturerAvailability(Base):
     __tablename__ = "lecturer_availabilities"
     id = Column(Integer, primary_key=True, index=True)
     lecturer_id = Column(Integer, ForeignKey("lecturers.ID", ondelete="CASCADE"), unique=True, nullable=False)
     schedule_data = Column(JSON, default={}, nullable=False)
+
 
 class SchedulerConstraint(Base):
     __tablename__ = "scheduler_constraints"
@@ -124,6 +133,7 @@ class SchedulerConstraint(Base):
     created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
 
+
 class Semester(Base):
     __tablename__ = "semesters"
     id = Column(Integer, primary_key=True, index=True)
@@ -131,3 +141,26 @@ class Semester(Base):
     acronym = Column(String, nullable=False)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
+
+
+# ✅ TU CÓDIGO RESTAURADO
+class OfferedModule(Base):
+    __tablename__ = "offered_modules"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Vinculamos al Código de Materia
+    module_code = Column(String, ForeignKey("modules.module_code", ondelete="CASCADE"), nullable=False)
+
+    # Vinculamos al Profesor
+    lecturer_id = Column(Integer, ForeignKey("lecturers.ID"), nullable=True)
+
+    # 🔥 EL TRUCO: Guardamos el NOMBRE del semestre (ej: "Winter 2024")
+    # Esto permite que tu Router siga funcionando sin cambios complejos.
+    semester = Column(String, nullable=False)
+
+    status = Column(String, default="Confirmed")
+
+    # Relaciones para leer nombres bonitos
+    module = relationship("Module")
+    lecturer = relationship("Lecturer")
