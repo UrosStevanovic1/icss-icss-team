@@ -50,7 +50,7 @@ export default function TimetableManager() {
     return pastelColors[Math.abs(hash) % pastelColors.length];
   };
 
-  // --- CARGA DE DATOS (Con useCallback para evitar warnings) ---
+  // --- CARGA DE DATOS ---
   const loadSchedule = useCallback(async () => {
     if (!selectedSemester) return;
     setLoading(true);
@@ -71,14 +71,12 @@ export default function TimetableManager() {
     } catch (e) { console.error(e); }
   }, [selectedSemester]);
 
-  // Carga inicial
   useEffect(() => {
     async function loadInitialData() {
       try {
         const s = await api.getSemesters();
         setSemesters(s);
         if (s.length > 0) setSelectedSemester(s[0].name);
-
         const l = await api.getLecturers();
         setLecturers(l);
         const g = await api.getGroups();
@@ -88,7 +86,6 @@ export default function TimetableManager() {
     loadInitialData();
   }, []);
 
-  // Carga cuando cambia semestre
   useEffect(() => {
     if (selectedSemester) {
       loadSchedule();
@@ -106,7 +103,7 @@ export default function TimetableManager() {
   };
   const filteredData = getFilteredSchedule();
 
-  // --- NAVEGACIÓN FECHAS ---
+  // --- NAVEGACIÓN ---
   const handleNavigateDate = (direction) => {
     if (viewMode === "Semester") return;
     const newDate = new Date(currentDate);
@@ -124,8 +121,7 @@ export default function TimetableManager() {
   const displayDayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
   const displayDateNum = currentDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '.');
   const displayMonthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-  const visibleDays = (viewMode === "Week" || viewMode === "Semester") ? daysOfWeek : [getDayNameFromDate(currentDate)];
+  const visibleDays = (viewMode === "Week") ? daysOfWeek : [getDayNameFromDate(currentDate)];
 
   // --- HANDLERS ---
   const handleCellClick = (day, time) => {
@@ -139,7 +135,6 @@ export default function TimetableManager() {
       const startHour = parseInt(newEntry.time.split(":")[0]);
       const endHour = startHour + 1;
       const endTime = `${endHour < 10 ? '0' : ''}${endHour}:00`;
-
       await api.createScheduleEntry({
         offered_module_id: newEntry.offered_module_id,
         room_id: newEntry.room_id,
@@ -164,7 +159,9 @@ export default function TimetableManager() {
     return filteredData.find(entry => entry.day_of_week === day && entry.start_time.startsWith(hourPrefix));
   };
 
-  // --- RENDERS ---
+  // --- RENDERIZADORES ---
+
+  // 1. LISTA SIMPLE
   const renderListView = () => {
     const sortedList = [...filteredData].sort((a, b) => {
       const dayOrder = { "Monday": 1, "Tuesday": 2, "Wednesday": 3, "Thursday": 4, "Friday": 5 };
@@ -182,12 +179,11 @@ export default function TimetableManager() {
               <th style={{ padding: "12px 15px", textAlign: "left", color: "#495057" }}>Module</th>
               <th style={{ padding: "12px 15px", textAlign: "left", color: "#495057" }}>Lecturer</th>
               <th style={{ padding: "12px 15px", textAlign: "left", color: "#495057" }}>Room</th>
-              <th style={{ padding: "12px 15px", textAlign: "center", color: "#495057" }}>Action</th>
             </tr>
           </thead>
           <tbody>
             {sortedList.length === 0 ? (
-              <tr><td colSpan="6" style={{ padding: "20px", textAlign: "center", color: "#999" }}>No classes scheduled yet.</td></tr>
+              <tr><td colSpan="5" style={{ padding: "20px", textAlign: "center", color: "#999" }}>No classes scheduled yet.</td></tr>
             ) : (
               sortedList.map((entry, idx) => (
                 <tr key={entry.id} style={{ borderBottom: "1px solid #f1f3f5", background: idx % 2 === 0 ? "white" : "#fcfcfc" }}>
@@ -196,9 +192,6 @@ export default function TimetableManager() {
                   <td style={{ padding: "12px 15px", fontWeight: "600" }}>{entry.module_name}</td>
                   <td style={{ padding: "12px 15px" }}>{entry.lecturer_name}</td>
                   <td style={{ padding: "12px 15px" }}>📍 {entry.room_name}</td>
-                  <td style={{ padding: "12px 15px", textAlign: "center" }}>
-                    <button onClick={(e) => handleDelete(entry.id, e)} style={{ background: "#ffe3e3", color: "#c92a2a", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "0.8rem", fontWeight: "bold" }}>Delete</button>
-                  </td>
                 </tr>
               ))
             )}
@@ -208,13 +201,96 @@ export default function TimetableManager() {
     );
   };
 
+  // 2. VISTA SEMESTRAL COMPLETA (TIPO EXCEL)
+  // - Implementación basada en esta imagen
+  const renderSemesterPlan = () => {
+    // Definimos meses simulados para el semestre (Oct, Nov, Dic, Ene)
+    // Nota: Esto es visual, ya que no tenemos fechas reales en BD.
+    const semesterMonths = [
+      { name: "October", days: 31, startDay: 2 }, // startDay: 0=Sun, 1=Mon, 2=Tue... (Simulado para 2025)
+      { name: "November", days: 30, startDay: 5 },
+      { name: "December", days: 31, startDay: 0 },
+      { name: "January", days: 31, startDay: 3 }
+    ];
+
+    return (
+      <div style={{ display: "flex", gap: "20px", overflowX: "auto", paddingBottom: "20px", marginTop: "20px" }}>
+        {semesterMonths.map((month, mIdx) => (
+          <div key={mIdx} style={{ minWidth: "300px", background: "white", border: "1px solid #ddd", borderRadius: "8px", overflow: "hidden" }}>
+            {/* Header del Mes */}
+            <div style={{ background: "#2b4a8e", color: "white", padding: "10px", textAlign: "center", fontWeight: "bold" }}>
+              {month.name}
+            </div>
+
+            {/* Tabla de días */}
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+              <thead>
+                <tr style={{ background: "#f1f3f5", borderBottom: "1px solid #ddd" }}>
+                  <th style={{ padding: "5px", width: "30px", borderRight: "1px solid #eee" }}>D</th>
+                  <th style={{ padding: "5px", width: "40px", borderRight: "1px solid #eee" }}>Day</th>
+                  <th style={{ padding: "5px" }}>Module / Lecturer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: month.days }, (_, i) => {
+                  const dayNum = i + 1;
+                  // Calcular día de la semana (simulado)
+                  const dayOfWeekIndex = (month.startDay + i) % 7;
+                  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                  const dayName = dayNames[dayOfWeekIndex];
+                  const isWeekend = dayName === "Saturday" || dayName === "Sunday";
+
+                  // Buscar clases para este día (Proyección)
+                  const dailyClasses = filteredData.filter(c => c.day_of_week === dayName);
+
+                  return (
+                    <tr key={dayNum} style={{
+                      background: isWeekend ? "#e9ecef" : "white", // Gris si es fin de semana
+                      borderBottom: "1px solid #f1f3f5"
+                    }}>
+                      <td style={{ padding: "6px", textAlign: "center", fontWeight: "bold", color: "#666", borderRight: "1px solid #eee" }}>
+                        {dayNum < 10 ? `0${dayNum}` : dayNum}
+                      </td>
+                      <td style={{ padding: "6px", color: isWeekend ? "#adb5bd" : "#333", fontSize: "0.75rem", borderRight: "1px solid #eee" }}>
+                        {dayName.substring(0, 3)}
+                      </td>
+                      <td style={{ padding: "4px" }}>
+                        {dailyClasses.length > 0 ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            {dailyClasses.map(cls => (
+                              <div key={cls.id} style={{
+                                background: getColorForModule(cls.module_name).bg,
+                                borderLeft: `3px solid ${getColorForModule(cls.module_name).border}`,
+                                padding: "3px 5px", borderRadius: "3px", fontSize: "0.7rem"
+                              }}>
+                                <strong>{cls.start_time}</strong> {cls.module_name}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          // Espacio vacío o feriado
+                           isWeekend ? <span style={{color:"#ccc"}}>-</span> : null
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // 3. VISTA MES (Calendario clásico)
   const renderMonthView = () => {
+    // ... (Lógica de calendario mensual igual que antes) ...
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const firstDay = new Date(year, month, 1);
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-
     const calendarCells = [];
     for (let i = 0; i < startDayOfWeek; i++) {
       calendarCells.push(<div key={`empty-${i}`} style={{background: "#f8f9fa", border: "1px solid #eee", minHeight: "100px"}}></div>);
@@ -223,19 +299,12 @@ export default function TimetableManager() {
       const currentDayDate = new Date(year, month, d);
       const dayName = getDayNameFromDate(currentDayDate);
       const dailyClasses = filteredData.filter(entry => entry.day_of_week === dayName);
-
       calendarCells.push(
         <div key={d} style={{ border: "1px solid #eee", minHeight: "100px", padding: "5px", background: "white" }}>
           <div style={{ textAlign: "right", fontWeight: "bold", color: "#ccc", marginBottom: "5px" }}>{d}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
             {dailyClasses.map(cls => (
-              <div key={cls.id} style={{
-                fontSize: "0.65rem", padding: "2px 4px", borderRadius: "3px",
-                background: getColorForModule(cls.module_name).bg,
-                color: getColorForModule(cls.module_name).text,
-                borderLeft: `3px solid ${getColorForModule(cls.module_name).border}`,
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
-              }}>
+              <div key={cls.id} style={{ fontSize: "0.65rem", padding: "2px 4px", borderRadius: "3px", background: getColorForModule(cls.module_name).bg, color: getColorForModule(cls.module_name).text, borderLeft: `3px solid ${getColorForModule(cls.module_name).border}`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {cls.start_time} {cls.module_name}
               </div>
             ))}
@@ -253,6 +322,7 @@ export default function TimetableManager() {
     );
   };
 
+  // 4. VISTA SEMANA / DÍA
   const renderGridView = () => (
     <div style={{ borderTop: "1px solid #e9ecef", overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px", tableLayout: "fixed" }}>
@@ -262,11 +332,9 @@ export default function TimetableManager() {
             {visibleDays.map(day => (
               <th key={day} style={{ padding: "15px", textAlign: "center", fontWeight: "bold", color: "#2b4a8e", fontSize:"1.1rem", borderBottom: "2px solid #dee2e6", borderRight: "1px solid #f1f3f5" }}>
                 {day}
-                {viewMode !== "Semester" && (
-                   <div style={{fontSize: "0.8rem", color: "#888", fontWeight: "normal", marginTop: "4px"}}>
-                     {/* Fecha placeholder */}
-                   </div>
-                )}
+                <div style={{fontSize: "0.8rem", color: "#888", fontWeight: "normal", marginTop: "4px"}}>
+                  {viewMode === "Week" && "(Weekly Schedule)"}
+                </div>
               </th>
             ))}
           </tr>
@@ -308,47 +376,21 @@ export default function TimetableManager() {
     border: "1px solid #2b4a8e", borderRadius: "4px", cursor: "pointer", fontSize: "0.8rem", fontWeight: "600", minWidth: "80px", textAlign: "center"
   });
 
-  const filterSelectStyle = {
-    padding: "8px 12px", borderRadius: "6px", border: "1px solid #dee2e6", background: "white", color: "#495057", minWidth: "160px", fontSize: "0.9rem"
-  };
+  const filterSelectStyle = { padding: "8px 12px", borderRadius: "6px", border: "1px solid #dee2e6", background: "white", color: "#495057", minWidth: "160px", fontSize: "0.9rem" };
 
   return (
     <div style={{ padding: "40px", fontFamily: "'Inter', 'Segoe UI', sans-serif", background: "#ffffff", minHeight: "100vh" }}>
-
       <h2 style={{ margin: "0 0 30px 0", color: "#343a40", fontSize: "1.6rem", fontWeight: "700" }}>Schedule Overview</h2>
 
       {/* FILTROS */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "30px", marginBottom: "40px" }}>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Semester</label>
-          <select value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)} style={filterSelectStyle}>
-            {semesters.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-          </select>
-        </div>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Groups</label>
-          <select value={filterGroup} onChange={e => setFilterGroup(e.target.value)} style={filterSelectStyle}>
-            <option value="">All Groups</option>
-            {groups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
-          </select>
-        </div>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Lecturer</label>
-          <select value={filterLecturer} onChange={e => setFilterLecturer(e.target.value)} style={filterSelectStyle}>
-            <option value="">All Lecturers</option>
-            {lecturers.map(l => <option key={l.id} value={`${l.first_name} ${l.last_name}`}>{`${l.first_name} ${l.last_name}`}</option>)}
-          </select>
-        </div>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <label style={{ marginRight: "10px", fontWeight: "bold" }}>Location</label>
-          <select value={filterRoom} onChange={e => setFilterRoom(e.target.value)} style={{ ...filterSelectStyle, width: "120px" }}>
-            <option value="">All</option>
-            {rooms.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-          </select>
-        </div>
+        <div style={{ display: "flex", alignItems: "center" }}><label style={{ marginRight: "10px", fontWeight: "bold" }}>Semester</label><select value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)} style={filterSelectStyle}>{semesters.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}</select></div>
+        <div style={{ display: "flex", alignItems: "center" }}><label style={{ marginRight: "10px", fontWeight: "bold" }}>Groups</label><select value={filterGroup} onChange={e => setFilterGroup(e.target.value)} style={filterSelectStyle}><option value="">All Groups</option>{groups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}</select></div>
+        <div style={{ display: "flex", alignItems: "center" }}><label style={{ marginRight: "10px", fontWeight: "bold" }}>Lecturer</label><select value={filterLecturer} onChange={e => setFilterLecturer(e.target.value)} style={filterSelectStyle}><option value="">All Lecturers</option>{lecturers.map(l => <option key={l.id} value={`${l.first_name} ${l.last_name}`}>{`${l.first_name} ${l.last_name}`}</option>)}</select></div>
+        <div style={{ display: "flex", alignItems: "center" }}><label style={{ marginRight: "10px", fontWeight: "bold" }}>Location</label><select value={filterRoom} onChange={e => setFilterRoom(e.target.value)} style={{ ...filterSelectStyle, width: "120px" }}><option value="">All</option>{rooms.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}</select></div>
       </div>
 
-      {/* CONTROLES */}
+      {/* NAVEGACIÓN */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px" }}>
         {!isListView ? (
           <div style={{ display: "flex", gap: "10px" }}>
@@ -362,42 +404,31 @@ export default function TimetableManager() {
         <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
           {!isListView && (
             <>
-              {viewMode !== "Semester" && (
-                <button onClick={() => handleNavigateDate("prev")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "2rem", color: "#2b4a8e" }}>‹</button>
-              )}
+              {viewMode !== "Semester" && <button onClick={() => handleNavigateDate("prev")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "2rem", color: "#2b4a8e" }}>‹</button>}
               <div style={{ textAlign: "center", color: "#2b4a8e" }}>
-                {viewMode === "Month" ? (
-                  <div style={{ fontSize: "1.4rem", fontWeight: "700" }}>{displayMonthName}</div>
-                ) : viewMode === "Semester" ? (
-                  // ✅ AQUÍ ESTÁ EL CAMBIO: Título = Nombre del Semestre
-                  <>
-                    <div style={{ fontSize: "1.4rem", fontWeight: "700" }}>{selectedSemester}</div>
-                    <div style={{ fontSize: "1rem", fontWeight: "600", opacity: 0.9 }}>Semester Overview</div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ fontSize: "1.1rem", fontWeight: "700", lineHeight: "1.2" }}>{viewMode === "Week" ? "Week View" : displayDayName}</div>
-                    <div style={{ fontSize: "1rem", fontWeight: "600", opacity: 0.9 }}>{viewMode === "Week" ? "(Mon - Fri)" : displayDateNum}</div>
-                  </>
-                )}
+                {viewMode === "Month" ? <div style={{ fontSize: "1.4rem", fontWeight: "700" }}>{displayMonthName}</div> :
+                 viewMode === "Semester" ? <><div style={{ fontSize: "1.4rem", fontWeight: "700" }}>{selectedSemester}</div><div style={{ fontSize: "1rem", fontWeight: "600", opacity: 0.9 }}>Semester Overview</div></> :
+                 <><div style={{ fontSize: "1.1rem", fontWeight: "700", lineHeight: "1.2" }}>{viewMode === "Week" ? "Week View" : displayDayName}</div><div style={{ fontSize: "1rem", fontWeight: "600", opacity: 0.9 }}>{viewMode === "Week" ? "(Mon - Fri)" : displayDateNum}</div></>}
               </div>
-              {viewMode !== "Semester" && (
-                <button onClick={() => handleNavigateDate("next")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "2rem", color: "#2b4a8e" }}>›</button>
-              )}
+              {viewMode !== "Semester" && <button onClick={() => handleNavigateDate("next")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "2rem", color: "#2b4a8e" }}>›</button>}
             </>
           )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ color: isListView ? "#2b4a8e" : "#6c757d", fontWeight: isListView ? "700" : "400", fontSize: "0.95rem" }}>List View</span>
-          <div onClick={() => setIsListView(!isListView)} style={{ width: "44px", height: "24px", background: isListView ? "#6c757d" : "#2b4a8e", borderRadius: "12px", position: "relative", cursor: "pointer", display: "flex", alignItems: "center", transition: "background 0.3s" }}>
-            <div style={{ width: "18px", height: "18px", background: "white", borderRadius: "50%", position: "absolute", left: isListView ? "3px" : "auto", right: isListView ? "auto" : "3px", boxShadow: "0 1px 2px rgba(0,0,0,0.2)", transition: "all 0.3s" }}></div>
-          </div>
+          <div onClick={() => setIsListView(!isListView)} style={{ width: "44px", height: "24px", background: isListView ? "#6c757d" : "#2b4a8e", borderRadius: "12px", position: "relative", cursor: "pointer", display: "flex", alignItems: "center", transition: "background 0.3s" }}><div style={{ width: "18px", height: "18px", background: "white", borderRadius: "50%", position: "absolute", left: isListView ? "3px" : "auto", right: isListView ? "auto" : "3px", boxShadow: "0 1px 2px rgba(0,0,0,0.2)", transition: "all 0.3s" }}></div></div>
           <span style={{ color: !isListView ? "#2b4a8e" : "#6c757d", fontWeight: !isListView ? "700" : "400", fontSize: "0.95rem" }}>Calendar View</span>
         </div>
       </div>
 
-      {loading ? <p>Loading...</p> : (isListView ? renderListView() : (viewMode === "Month" ? renderMonthView() : renderGridView()))}
+      {loading ? <p>Loading...</p> : (
+        isListView ? renderListView() : (
+          viewMode === "Semester" ? renderSemesterPlan() : // ✅ VISTA NUEVA TIPO EXCEL
+          viewMode === "Month" ? renderMonthView() :
+          renderGridView()
+        )
+      )}
 
       {showModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, backdropFilter: "blur(3px)" }}>
@@ -405,19 +436,10 @@ export default function TimetableManager() {
             <h3 style={{ marginTop: 0, marginBottom: "20px", color: "#343a40" }}>Schedule Class</h3>
             <p style={{marginBottom:"20px", color: "#6c757d"}}><strong>{newEntry.day}</strong> at <strong>{newEntry.time}</strong></p>
             <label style={{display:"block", marginBottom:"6px", fontWeight:"600"}}>Module</label>
-            <select style={{width:"100%", padding:"10px", marginBottom:"20px", borderRadius:"6px", border:"1px solid #ced4da"}} value={newEntry.offered_module_id} onChange={e => setNewEntry({...newEntry, offered_module_id: e.target.value})}>
-              <option value="">-- Select Module --</option>
-              {offeredModules.map(m => <option key={m.id} value={m.id}>{m.module_name} ({m.lecturer_name})</option>)}
-            </select>
+            <select style={{width:"100%", padding:"10px", marginBottom:"20px", borderRadius:"6px", border:"1px solid #ced4da"}} value={newEntry.offered_module_id} onChange={e => setNewEntry({...newEntry, offered_module_id: e.target.value})}><option value="">-- Select Module --</option>{offeredModules.map(m => <option key={m.id} value={m.id}>{m.module_name} ({m.lecturer_name})</option>)}</select>
             <label style={{display:"block", marginBottom:"6px", fontWeight:"600"}}>Room</label>
-            <select style={{width:"100%", padding:"10px", marginBottom:"30px", borderRadius:"6px", border:"1px solid #ced4da"}} value={newEntry.room_id} onChange={e => setNewEntry({...newEntry, room_id: e.target.value})}>
-              <option value="">-- Select Room --</option>
-              {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-            <div style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-              <button onClick={() => setShowModal(false)} style={{ padding: "10px 20px", background: "white", border: "1px solid #ced4da", borderRadius:"6px", cursor: "pointer" }}>Cancel</button>
-              <button onClick={handleSave} style={{ padding: "10px 24px", background: "#2b4a8e", color: "white", border: "none", borderRadius:"6px", cursor: "pointer", fontWeight: "600" }}>Save Class</button>
-            </div>
+            <select style={{width:"100%", padding:"10px", marginBottom:"30px", borderRadius:"6px", border:"1px solid #ced4da"}} value={newEntry.room_id} onChange={e => setNewEntry({...newEntry, room_id: e.target.value})}><option value="">-- Select Room --</option>{rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
+            <div style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: "10px" }}><button onClick={() => setShowModal(false)} style={{ padding: "10px 20px", background: "white", border: "1px solid #ced4da", borderRadius:"6px", cursor: "pointer" }}>Cancel</button><button onClick={handleSave} style={{ padding: "10px 24px", background: "#2b4a8e", color: "white", border: "none", borderRadius:"6px", cursor: "pointer", fontWeight: "600" }}>Save Class</button></div>
           </div>
         </div>
       )}
