@@ -300,7 +300,7 @@ export default function TimetableManager() {
                                 }}>
                                   <div style={{marginBottom:"2px"}}><strong>{cls.start_time}</strong> {cls.module_name}</div>
                                   {/* ✅ AQUÍ SE AGREGA EL PROFESOR */}
-                                  <div style={{fontSize:"0.65rem", opacity:0.8, fontStyle:"italic"}}>👨‍🏫 {cls.lecturer_name}</div>
+                                  <div style={{fontSize:"0.65rem", opacity:0.8, fontStyle:"italic"}}> {cls.lecturer_name}</div>
                                 </div>
                               ))}
                             </div>
