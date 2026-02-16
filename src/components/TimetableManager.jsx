@@ -2,18 +2,18 @@ import React, { useState, useEffect } from "react";
 import api from "../api";
 
 export default function TimetableManager() {
-  // --- ESTADOS ---
+
   const [semesters, setSemesters] = useState([]);
   const [selectedSemester, setSelectedSemester] = useState("");
   const [scheduleData, setScheduleData] = useState([]);
 
-  // Listas
+
   const [offeredModules, setOfferedModules] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [lecturers, setLecturers] = useState([]);
   const [groups, setGroups] = useState([]);
 
-  // Filtros
+
   const [filterLecturer, setFilterLecturer] = useState("");
   const [filterGroup, setFilterGroup] = useState("");
   const [filterRoom, setFilterRoom] = useState("");
@@ -21,10 +21,10 @@ export default function TimetableManager() {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
-  // VISTA, FECHA Y MODO (Calendar vs List)
-  const [viewMode, setViewMode] = useState("Week"); // "Day" | "Week" | "Month"
+
+  const [viewMode, setViewMode] = useState("Week"); // "Day" | "Week" | "Month" | "Semester"
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [isListView, setIsListView] = useState(false); // <--- NUEVO ESTADO PARA LISTA
+  const [isListView, setIsListView] = useState(false);
 
   const [newEntry, setNewEntry] = useState({ day: "", time: "", offered_module_id: "", room_id: "" });
 
@@ -34,7 +34,7 @@ export default function TimetableManager() {
     "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"
   ];
 
-  // Colores Pastel
+
   const pastelColors = [
     { bg: "#fff9c4", border: "#fbc02d", text: "#5d4037" },
     { bg: "#c8e6c9", border: "#43a047", text: "#1b5e20" },
@@ -50,7 +50,7 @@ export default function TimetableManager() {
     return pastelColors[Math.abs(hash) % pastelColors.length];
   };
 
-  // --- CARGA DE DATOS ---
+
   useEffect(() => {
     async function loadInitialData() {
       try {
@@ -72,7 +72,7 @@ export default function TimetableManager() {
       loadSchedule();
       loadDropdowns();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [selectedSemester]);
 
   async function loadSchedule() {
@@ -93,7 +93,7 @@ export default function TimetableManager() {
     } catch (e) { console.error(e); }
   }
 
-  // --- FILTRADO ---
+
   const getFilteredSchedule = () => {
     return scheduleData.filter(entry => {
       if (filterLecturer && entry.lecturer_name !== filterLecturer) return false;
@@ -103,8 +103,11 @@ export default function TimetableManager() {
   };
   const filteredData = getFilteredSchedule();
 
-  // --- NAVEGACIÓN FECHAS ---
+
   const handleNavigateDate = (direction) => {
+
+    if (viewMode === "Semester") return;
+
     const newDate = new Date(currentDate);
     if (viewMode === "Day") {
       newDate.setDate(currentDate.getDate() + (direction === "next" ? 1 : -1));
@@ -116,12 +119,14 @@ export default function TimetableManager() {
     setCurrentDate(newDate);
   };
 
+
   const getDayNameFromDate = (date) => date.toLocaleDateString('en-US', { weekday: 'long' });
   const displayDayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
   const displayDateNum = currentDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '.');
   const displayMonthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-  const visibleDays = viewMode === "Week" ? daysOfWeek : [getDayNameFromDate(currentDate)];
+
+  const visibleDays = (viewMode === "Week" || viewMode === "Semester") ? daysOfWeek : [getDayNameFromDate(currentDate)];
 
   // --- HANDLERS ---
   const handleCellClick = (day, time) => {
@@ -160,16 +165,13 @@ export default function TimetableManager() {
     return filteredData.find(entry => entry.day_of_week === day && entry.start_time.startsWith(hourPrefix));
   };
 
-  // --- RENDERIZADO DE VISTAS ---
+  // --- RENDERS ---
 
-  // 1. VISTA DE LISTA (La nueva funcionalidad ICSS-161)
+  // 1. LISTA
   const renderListView = () => {
-    // Ordenar por día y luego por hora
     const sortedList = [...filteredData].sort((a, b) => {
       const dayOrder = { "Monday": 1, "Tuesday": 2, "Wednesday": 3, "Thursday": 4, "Friday": 5 };
-      if (dayOrder[a.day_of_week] !== dayOrder[b.day_of_week]) {
-        return dayOrder[a.day_of_week] - dayOrder[b.day_of_week];
-      }
+      if (dayOrder[a.day_of_week] !== dayOrder[b.day_of_week]) return dayOrder[a.day_of_week] - dayOrder[b.day_of_week];
       return a.start_time.localeCompare(b.start_time);
     });
 
@@ -196,14 +198,9 @@ export default function TimetableManager() {
                   <td style={{ padding: "12px 15px" }}>{entry.start_time} - {entry.end_time}</td>
                   <td style={{ padding: "12px 15px", fontWeight: "600" }}>{entry.module_name}</td>
                   <td style={{ padding: "12px 15px" }}>{entry.lecturer_name}</td>
-                  <td style={{ padding: "12px 15px" }}>📍 {entry.room_name}</td>
+                  <td style={{ padding: "12px 15px" }}> {entry.room_name}</td>
                   <td style={{ padding: "12px 15px", textAlign: "center" }}>
-                    <button
-                      onClick={(e) => handleDelete(entry.id, e)}
-                      style={{ background: "#ffe3e3", color: "#c92a2a", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "0.8rem", fontWeight: "bold" }}
-                    >
-                      Delete
-                    </button>
+                    <button onClick={(e) => handleDelete(entry.id, e)} style={{ background: "#ffe3e3", color: "#c92a2a", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "0.8rem", fontWeight: "bold" }}>Delete</button>
                   </td>
                 </tr>
               ))
@@ -214,7 +211,7 @@ export default function TimetableManager() {
     );
   };
 
-  // 2. VISTA MENSUAL
+  // 2. MES
   const renderMonthView = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -260,8 +257,8 @@ export default function TimetableManager() {
     );
   };
 
-  // 3. VISTA SEMANAL / DIARIA
-  const renderWeekView = () => (
+
+  const renderGridView = () => (
     <div style={{ borderTop: "1px solid #e9ecef", overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px", tableLayout: "fixed" }}>
         <thead>
@@ -270,6 +267,12 @@ export default function TimetableManager() {
             {visibleDays.map(day => (
               <th key={day} style={{ padding: "15px", textAlign: "center", fontWeight: "bold", color: "#2b4a8e", fontSize:"1.1rem", borderBottom: "2px solid #dee2e6", borderRight: "1px solid #f1f3f5" }}>
                 {day}
+
+                {viewMode !== "Semester" && (
+                   <div style={{fontSize: "0.8rem", color: "#888", fontWeight: "normal", marginTop: "4px"}}>
+                     {/* Nota: Aquí iría la lógica matemática para calcular la fecha exacta de ese día de la semana */}
+                   </div>
+                )}
               </th>
             ))}
           </tr>
@@ -303,9 +306,9 @@ export default function TimetableManager() {
     </div>
   );
 
-  // --- ESTILOS ---
+
   const navButtonStyle = (mode) => ({
-    padding: "8px 24px",
+    padding: "8px 20px",
     background: viewMode === mode ? "#2b4a8e" : "white",
     color: viewMode === mode ? "white" : "#2b4a8e",
     border: "1px solid #2b4a8e", borderRadius: "4px", cursor: "pointer", fontSize: "0.8rem", fontWeight: "600", minWidth: "80px", textAlign: "center"
@@ -320,7 +323,7 @@ export default function TimetableManager() {
 
       <h2 style={{ margin: "0 0 30px 0", color: "#343a40", fontSize: "1.6rem", fontWeight: "700" }}>Schedule Overview</h2>
 
-      {/* FILTROS */}
+
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "30px", marginBottom: "40px" }}>
         <div style={{ display: "flex", alignItems: "center" }}>
           <label style={{ marginRight: "10px", fontWeight: "bold" }}>Semester</label>
@@ -351,72 +354,72 @@ export default function TimetableManager() {
         </div>
       </div>
 
-      {/* NAVEGACIÓN Y CONTROLES */}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px" }}>
 
-        {/* Botones de Vista (Solo visibles si NO estamos en modo Lista) */}
+
         {!isListView ? (
-          <div style={{ display: "flex", gap: "15px" }}>
+          <div style={{ display: "flex", gap: "10px" }}>
             <button style={navButtonStyle("Day")} onClick={() => setViewMode("Day")}>Day</button>
             <button style={navButtonStyle("Week")} onClick={() => setViewMode("Week")}>Week</button>
             <button style={navButtonStyle("Month")} onClick={() => setViewMode("Month")}>Month</button>
-          </div>
-        ) : (
-          <div></div> // Espacio vacío para mantener alineación
-        )}
 
-        {/* Fecha Central */}
+            <button style={navButtonStyle("Semester")} onClick={() => setViewMode("Semester")}>Semester</button>
+          </div>
+        ) : <div></div>}
+
+
         <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
           {!isListView && (
             <>
-              <button onClick={() => handleNavigateDate("prev")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "2rem", color: "#2b4a8e" }}>‹</button>
+
+              {viewMode !== "Semester" && (
+                <button onClick={() => handleNavigateDate("prev")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "2rem", color: "#2b4a8e" }}>‹</button>
+              )}
+
               <div style={{ textAlign: "center", color: "#2b4a8e" }}>
                 {viewMode === "Month" ? (
                   <div style={{ fontSize: "1.4rem", fontWeight: "700" }}>{displayMonthName}</div>
+                ) : viewMode === "Semester" ? (
+
+                  <>
+                    <div style={{ fontSize: "1.4rem", fontWeight: "700" }}>Master Schedule</div>
+                    <div style={{ fontSize: "1rem", fontWeight: "600", opacity: 0.9 }}>{selectedSemester}</div>
+                  </>
                 ) : (
+
                   <>
                     <div style={{ fontSize: "1.1rem", fontWeight: "700", lineHeight: "1.2" }}>{viewMode === "Week" ? "Week View" : displayDayName}</div>
                     <div style={{ fontSize: "1rem", fontWeight: "600", opacity: 0.9 }}>{viewMode === "Week" ? "(Mon - Fri)" : displayDateNum}</div>
                   </>
                 )}
               </div>
-              <button onClick={() => handleNavigateDate("next")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "2rem", color: "#2b4a8e" }}>›</button>
+
+              {viewMode !== "Semester" && (
+                <button onClick={() => handleNavigateDate("next")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "2rem", color: "#2b4a8e" }}>›</button>
+              )}
             </>
           )}
         </div>
 
-        {/* TOGGLE: List / Calendar View (FUNCIONAL) */}
+
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ color: isListView ? "#2b4a8e" : "#6c757d", fontWeight: isListView ? "700" : "400", fontSize: "0.95rem" }}>List View</span>
-
-          <div
-            onClick={() => setIsListView(!isListView)} // <--- AQUÍ ESTÁ LA MAGIA
-            style={{
-              width: "44px", height: "24px",
-              background: isListView ? "#6c757d" : "#2b4a8e", // Gris si es Lista, Azul si es Calendario
-              borderRadius: "12px", position: "relative", cursor: "pointer", display: "flex", alignItems: "center", transition: "background 0.3s"
-            }}>
-            <div style={{
-              width: "18px", height: "18px", background: "white", borderRadius: "50%",
-              position: "absolute",
-              left: isListView ? "3px" : "auto", // Mover a la izquierda si es Lista
-              right: isListView ? "auto" : "3px", // Mover a la derecha si es Calendario
-              boxShadow: "0 1px 2px rgba(0,0,0,0.2)", transition: "all 0.3s"
-            }}></div>
+          <div onClick={() => setIsListView(!isListView)} style={{ width: "44px", height: "24px", background: isListView ? "#6c757d" : "#2b4a8e", borderRadius: "12px", position: "relative", cursor: "pointer", display: "flex", alignItems: "center", transition: "background 0.3s" }}>
+            <div style={{ width: "18px", height: "18px", background: "white", borderRadius: "50%", position: "absolute", left: isListView ? "3px" : "auto", right: isListView ? "auto" : "3px", boxShadow: "0 1px 2px rgba(0,0,0,0.2)", transition: "all 0.3s" }}></div>
           </div>
-
           <span style={{ color: !isListView ? "#2b4a8e" : "#6c757d", fontWeight: !isListView ? "700" : "400", fontSize: "0.95rem" }}>Calendar View</span>
         </div>
       </div>
 
-      {/* RENDERIZADO PRINCIPAL */}
+
       {loading ? <p>Loading...</p> : (
         isListView ? renderListView() : (
-          viewMode === "Month" ? renderMonthView() : renderWeekView()
+          viewMode === "Month" ? renderMonthView() : renderGridView()
         )
       )}
 
-      {/* MODAL (Para agregar clases) */}
+
       {showModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, backdropFilter: "blur(3px)" }}>
           <div style={{ background: "white", padding: "30px", borderRadius: "12px", width: "420px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)" }}>

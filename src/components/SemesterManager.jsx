@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Trash2, Plus, Calendar, Loader2 } from "lucide-react";
-import api from "../api"; // ✅ Ensure this points to your api.js file
+import api from "../api";
 
 export default function SemesterManager({ currentUserRole }) {
   const [semesters, setSemesters] = useState([]);
@@ -52,7 +52,6 @@ export default function SemesterManager({ currentUserRole }) {
     }
   };
 
-  // ✅ Maps directly to your layout system
   const role = (currentUserRole || "").toLowerCase();
   const canEdit = ["pm", "admin"].includes(role);
 

@@ -2,14 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from pydantic import BaseModel
-
 from ..database import get_db
 from .. import models, auth
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
 
 
-# --- ESQUEMAS (Qué datos esperamos recibir del Frontend) ---
+
 class ScheduleCreate(BaseModel):
     offered_module_id: int
     room_id: Optional[int] = None
@@ -34,7 +33,6 @@ class ScheduleResponse(BaseModel):
         orm_mode = True
 
 
-# --- ENDPOINTS (Las funciones que llamará el Frontend) ---
 
 @router.get("/", response_model=List[ScheduleResponse])
 def get_schedule(semester: str, db: Session = Depends(get_db)):
@@ -49,10 +47,9 @@ def get_schedule(semester: str, db: Session = Depends(get_db)):
 
     results = query.all()
 
-    # Mapeamos los datos para que el frontend los reciba bonitos
     mapped = []
     for r in results:
-        # Prevenimos errores si se borró el módulo o el salón
+
         mod_name = r.offered_module.module.name if (r.offered_module and r.offered_module.module) else "Unknown"
         lec_name = "Unassigned"
         if r.offered_module and r.offered_module.lecturer:
@@ -78,12 +75,12 @@ def get_schedule(semester: str, db: Session = Depends(get_db)):
 def create_schedule_entry(entry: ScheduleCreate, db: Session = Depends(get_db)):
     """Crea una nueva clase en el calendario."""
 
-    # 1. Validar que la oferta de materia exista
+
     offer = db.query(models.OfferedModule).filter(models.OfferedModule.id == entry.offered_module_id).first()
     if not offer:
         raise HTTPException(status_code=404, detail="Offered Module not found")
 
-    # 2. Guardar el horario
+
     new_entry = models.ScheduleEntry(
         offered_module_id=entry.offered_module_id,
         room_id=entry.room_id,
@@ -97,7 +94,7 @@ def create_schedule_entry(entry: ScheduleCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_entry)
 
-    # Retornar respuesta simple (el frontend recargará la tabla)
+
     return {
         "id": new_entry.id,
         "offered_module_id": new_entry.offered_module_id,

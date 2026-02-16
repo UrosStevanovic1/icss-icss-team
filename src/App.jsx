@@ -12,7 +12,7 @@ import ConstraintOverview from "./components/ConstraintOverview";
 import AvailabilityOverview from "./components/AvailabilityOverview";
 import SemesterManager from "./components/SemesterManager";
 import OfferedModules from "./components/OfferedModules";
-import TimetableManager from "./components/TimetableManager"; // ✅ NUEVO IMPORT
+import TimetableManager from "./components/TimetableManager";
 
 function App() {
   const [activeTab, setActiveTab] = useState("programs");
@@ -59,7 +59,7 @@ function App() {
       case "semester-planning":
         return <OfferedModules {...commonProps} />;
 
-      // ✅ NUEVO CASO: Timetable
+
       case "timetable":
         return <TimetableManager {...commonProps} />;
 
