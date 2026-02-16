@@ -201,16 +201,16 @@ export default function TimetableManager() {
     );
   };
 
-  // 2. VISTA SEMESTRAL COMPLETA (TIPO EXCEL)
-  // - Implementación basada en esta imagen
+  // 2. VISTA SEMESTRAL COMPLETA (Febrero en adelante)
   const renderSemesterPlan = () => {
-    // Definimos meses simulados para el semestre (Oct, Nov, Dic, Ene)
-    // Nota: Esto es visual, ya que no tenemos fechas reales en BD.
+    // Definimos meses para el semestre de Primavera/Verano (Feb - Jul)
     const semesterMonths = [
-      { name: "October", days: 31, startDay: 2 }, // startDay: 0=Sun, 1=Mon, 2=Tue... (Simulado para 2025)
-      { name: "November", days: 30, startDay: 5 },
-      { name: "December", days: 31, startDay: 0 },
-      { name: "January", days: 31, startDay: 3 }
+      { name: "February", days: 28, startDay: 0 }, // 0=Domingo
+      { name: "March", days: 31, startDay: 0 },
+      { name: "April", days: 30, startDay: 3 },
+      { name: "May", days: 31, startDay: 5 },
+      { name: "June", days: 30, startDay: 1 },
+      { name: "July", days: 31, startDay: 3 }
     ];
 
     return (
@@ -234,7 +234,6 @@ export default function TimetableManager() {
               <tbody>
                 {Array.from({ length: month.days }, (_, i) => {
                   const dayNum = i + 1;
-                  // Calcular día de la semana (simulado)
                   const dayOfWeekIndex = (month.startDay + i) % 7;
                   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
                   const dayName = dayNames[dayOfWeekIndex];
@@ -268,7 +267,6 @@ export default function TimetableManager() {
                             ))}
                           </div>
                         ) : (
-                          // Espacio vacío o feriado
                            isWeekend ? <span style={{color:"#ccc"}}>-</span> : null
                         )}
                       </td>
@@ -285,7 +283,6 @@ export default function TimetableManager() {
 
   // 3. VISTA MES (Calendario clásico)
   const renderMonthView = () => {
-    // ... (Lógica de calendario mensual igual que antes) ...
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const firstDay = new Date(year, month, 1);
@@ -424,7 +421,7 @@ export default function TimetableManager() {
 
       {loading ? <p>Loading...</p> : (
         isListView ? renderListView() : (
-          viewMode === "Semester" ? renderSemesterPlan() : // ✅ VISTA NUEVA TIPO EXCEL
+          viewMode === "Semester" ? renderSemesterPlan() :
           viewMode === "Month" ? renderMonthView() :
           renderGridView()
         )
