@@ -26,6 +26,9 @@ export default function TimetableManager() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isListView, setIsListView] = useState(false);
 
+  // ESTADO NUEVO: TIPO DE SEMESTRE (Winter vs Summer)
+  const [semesterType, setSemesterType] = useState("Winter"); // "Winter" | "Summer"
+
   const [newEntry, setNewEntry] = useState({ day: "", time: "", offered_module_id: "", room_id: "" });
 
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -201,82 +204,121 @@ export default function TimetableManager() {
     );
   };
 
-  // 2. VISTA SEMESTRAL COMPLETA (Febrero en adelante)
+  // 2. VISTA SEMESTRAL COMPLETA (WINTER vs SUMMER)
   const renderSemesterPlan = () => {
-    // Definimos meses para el semestre de Primavera/Verano (Feb - Jul)
-    const semesterMonths = [
-      { name: "February", days: 28, startDay: 0 }, // 0=Domingo
-      { name: "March", days: 31, startDay: 0 },
-      { name: "April", days: 30, startDay: 3 },
-      { name: "May", days: 31, startDay: 5 },
-      { name: "June", days: 30, startDay: 1 },
-      { name: "July", days: 31, startDay: 3 }
-    ];
+    // Definimos los meses según el tipo seleccionado (Winter o Summer)
+    // Winter: Oct - Feb
+    // Summer: Mar - Aug
+    let months = [];
+    if (semesterType === "Winter") {
+      months = [
+        { name: "October", days: 31, startDay: 2 }, // startDay: 0=Sun, 1=Mon...
+        { name: "November", days: 30, startDay: 5 },
+        { name: "December", days: 31, startDay: 0 },
+        { name: "January", days: 31, startDay: 3 },
+        { name: "February", days: 28, startDay: 6 }
+      ];
+    } else {
+      months = [
+        { name: "March", days: 31, startDay: 0 },
+        { name: "April", days: 30, startDay: 3 },
+        { name: "May", days: 31, startDay: 5 },
+        { name: "June", days: 30, startDay: 1 },
+        { name: "July", days: 31, startDay: 3 },
+        { name: "August", days: 31, startDay: 6 }
+      ];
+    }
 
     return (
-      <div style={{ display: "flex", gap: "20px", overflowX: "auto", paddingBottom: "20px", marginTop: "20px" }}>
-        {semesterMonths.map((month, mIdx) => (
-          <div key={mIdx} style={{ minWidth: "300px", background: "white", border: "1px solid #ddd", borderRadius: "8px", overflow: "hidden" }}>
-            {/* Header del Mes */}
-            <div style={{ background: "#2b4a8e", color: "white", padding: "10px", textAlign: "center", fontWeight: "bold" }}>
-              {month.name}
+      <div style={{marginTop: "20px"}}>
+        {/* SELECTOR DE TIPO DE SEMESTRE (Winter / Summer) */}
+        <div style={{display:"flex", justifyContent:"center", marginBottom:"20px", gap:"10px"}}>
+          <button
+            onClick={() => setSemesterType("Winter")}
+            style={{
+              padding: "8px 20px", borderRadius: "20px", border: "1px solid #2b4a8e",
+              background: semesterType === "Winter" ? "#2b4a8e" : "white",
+              color: semesterType === "Winter" ? "white" : "#2b4a8e",
+              fontWeight: "bold", cursor: "pointer"
+            }}
+          >❄️ Winter Semester (Oct - Feb)</button>
+
+          <button
+            onClick={() => setSemesterType("Summer")}
+            style={{
+              padding: "8px 20px", borderRadius: "20px", border: "1px solid #f59f00",
+              background: semesterType === "Summer" ? "#f59f00" : "white",
+              color: semesterType === "Summer" ? "white" : "#f59f00",
+              fontWeight: "bold", cursor: "pointer"
+            }}
+          >☀️ Summer Semester (Mar - Aug)</button>
+        </div>
+
+        {/* TABLA HORIZONTAL DE MESES */}
+        <div style={{ display: "flex", gap: "20px", overflowX: "auto", paddingBottom: "20px" }}>
+          {months.map((month, mIdx) => (
+            <div key={mIdx} style={{ minWidth: "300px", background: "white", border: "1px solid #ddd", borderRadius: "8px", overflow: "hidden" }}>
+              {/* Header del Mes */}
+              <div style={{ background: semesterType === "Winter" ? "#2b4a8e" : "#f59f00", color: "white", padding: "10px", textAlign: "center", fontWeight: "bold" }}>
+                {month.name}
+              </div>
+
+              {/* Tabla de días */}
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                <thead>
+                  <tr style={{ background: "#f1f3f5", borderBottom: "1px solid #ddd" }}>
+                    <th style={{ padding: "5px", width: "30px", borderRight: "1px solid #eee" }}>D</th>
+                    <th style={{ padding: "5px", width: "40px", borderRight: "1px solid #eee" }}>Day</th>
+                    <th style={{ padding: "5px" }}>Module / Lecturer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: month.days }, (_, i) => {
+                    const dayNum = i + 1;
+                    const dayOfWeekIndex = (month.startDay + i) % 7;
+                    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                    const dayName = dayNames[dayOfWeekIndex];
+                    const isWeekend = dayName === "Saturday" || dayName === "Sunday";
+
+                    // Buscar clases para este día (Proyección)
+                    const dailyClasses = filteredData.filter(c => c.day_of_week === dayName);
+
+                    return (
+                      <tr key={dayNum} style={{
+                        background: isWeekend ? "#e9ecef" : "white", // Gris si es fin de semana
+                        borderBottom: "1px solid #f1f3f5"
+                      }}>
+                        <td style={{ padding: "6px", textAlign: "center", fontWeight: "bold", color: "#666", borderRight: "1px solid #eee" }}>
+                          {dayNum < 10 ? `0${dayNum}` : dayNum}
+                        </td>
+                        <td style={{ padding: "6px", color: isWeekend ? "#adb5bd" : "#333", fontSize: "0.75rem", borderRight: "1px solid #eee" }}>
+                          {dayName.substring(0, 3)}
+                        </td>
+                        <td style={{ padding: "4px" }}>
+                          {dailyClasses.length > 0 ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                              {dailyClasses.map(cls => (
+                                <div key={cls.id} style={{
+                                  background: getColorForModule(cls.module_name).bg,
+                                  borderLeft: `3px solid ${getColorForModule(cls.module_name).border}`,
+                                  padding: "3px 5px", borderRadius: "3px", fontSize: "0.7rem"
+                                }}>
+                                  <strong>{cls.start_time}</strong> {cls.module_name}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                             isWeekend ? <span style={{color:"#ccc"}}>-</span> : null
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-
-            {/* Tabla de días */}
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-              <thead>
-                <tr style={{ background: "#f1f3f5", borderBottom: "1px solid #ddd" }}>
-                  <th style={{ padding: "5px", width: "30px", borderRight: "1px solid #eee" }}>D</th>
-                  <th style={{ padding: "5px", width: "40px", borderRight: "1px solid #eee" }}>Day</th>
-                  <th style={{ padding: "5px" }}>Module / Lecturer</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: month.days }, (_, i) => {
-                  const dayNum = i + 1;
-                  const dayOfWeekIndex = (month.startDay + i) % 7;
-                  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-                  const dayName = dayNames[dayOfWeekIndex];
-                  const isWeekend = dayName === "Saturday" || dayName === "Sunday";
-
-                  // Buscar clases para este día (Proyección)
-                  const dailyClasses = filteredData.filter(c => c.day_of_week === dayName);
-
-                  return (
-                    <tr key={dayNum} style={{
-                      background: isWeekend ? "#e9ecef" : "white", // Gris si es fin de semana
-                      borderBottom: "1px solid #f1f3f5"
-                    }}>
-                      <td style={{ padding: "6px", textAlign: "center", fontWeight: "bold", color: "#666", borderRight: "1px solid #eee" }}>
-                        {dayNum < 10 ? `0${dayNum}` : dayNum}
-                      </td>
-                      <td style={{ padding: "6px", color: isWeekend ? "#adb5bd" : "#333", fontSize: "0.75rem", borderRight: "1px solid #eee" }}>
-                        {dayName.substring(0, 3)}
-                      </td>
-                      <td style={{ padding: "4px" }}>
-                        {dailyClasses.length > 0 ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            {dailyClasses.map(cls => (
-                              <div key={cls.id} style={{
-                                background: getColorForModule(cls.module_name).bg,
-                                borderLeft: `3px solid ${getColorForModule(cls.module_name).border}`,
-                                padding: "3px 5px", borderRadius: "3px", fontSize: "0.7rem"
-                              }}>
-                                <strong>{cls.start_time}</strong> {cls.module_name}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                           isWeekend ? <span style={{color:"#ccc"}}>-</span> : null
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     );
   };
@@ -421,7 +463,7 @@ export default function TimetableManager() {
 
       {loading ? <p>Loading...</p> : (
         isListView ? renderListView() : (
-          viewMode === "Semester" ? renderSemesterPlan() :
+          viewMode === "Semester" ? renderSemesterPlan() : // ✅ VISTA DINÁMICA WINTER/SUMMER
           viewMode === "Month" ? renderMonthView() :
           renderGridView()
         )
