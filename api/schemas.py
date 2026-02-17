@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Any
-from datetime import date
+from datetime import date, datetime
 
 # --- AUTH ---
 class LoginRequest(BaseModel):
@@ -239,10 +239,12 @@ class SchedulerConstraintUpdate(SchedulerConstraintBase):
 
 class SchedulerConstraintResponse(SchedulerConstraintBase):
     id: int
+    created_at: datetime
+    updated_at: datetime
     class Config:
         from_attributes = True
 
-# ✅ NEW: SEMESTERS
+
 class SemesterBase(BaseModel):
     name: str
     acronym: str

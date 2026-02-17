@@ -1,25 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import api from "../api";
 
+// --- STYLES (Identical mapping to ProgramOverview where applicable) ---
 const styles = {
   container: { padding: "20px", fontFamily: "'Inter', 'Segoe UI', sans-serif", maxWidth: "1200px", margin: "0 auto", color: "#334155" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", borderBottom: "1px solid #e2e8f0", paddingBottom: "20px" },
   title: { margin: 0, fontSize: "1.75rem", fontWeight: "700", color: "#0f172a" },
   subtitle: { margin: "5px 0 0 0", color: "#64748b", fontSize: "0.95rem" },
 
+  controlsBar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" },
+  filterContainer: { display: "flex", gap: "10px", alignItems: "center" },
+
   btn: { padding: "10px 18px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.9rem", fontWeight: "600", transition: "all 0.2s", display: "inline-flex", alignItems: "center", gap: "6px" },
   primaryBtn: { background: "#2563eb", color: "white", boxShadow: "0 2px 4px rgba(37,99,235,0.2)" },
   secondaryBtn: { background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1" },
-  deleteBtn: { background: "#fee2e2", color: "#ef4444", padding: "6px 12px", fontSize: "0.85rem" },
-  editBtn: { background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0", padding: "6px 12px", fontSize: "0.85rem", marginRight: "6px" },
+
+  // ACTION BUTTONS (Exact match to ProgramOverview)
+  actionContainer: { display: "flex", gap: "8px", justifyContent: "flex-start" },
+  actionBtn: { padding: "4px 8px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: "600" },
+  editBtn: { background: "#e2e8f0", color: "#475569" },
+  delBtn: { background: "#fee2e2", color: "#ef4444" },
+
+  groupSection: { marginBottom: "30px" },
+  groupHeader: { fontSize: "1.1rem", fontWeight: "700", color: "#1e293b", marginBottom: "10px", borderLeft: "4px solid #3b82f6", paddingLeft: "10px", display: "flex", alignItems: "center", gap: "10px" },
+  groupCount: { fontSize: "0.8rem", color: "#64748b", fontWeight: "500", background: "#f1f5f9", padding: "2px 8px", borderRadius: "10px" },
 
   tableContainer: { border: "1px solid #e2e8f0", borderRadius: "10px", overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" },
   table: { width: "100%", borderCollapse: "collapse", background: "white", fontSize: "0.95rem" },
   th: { background: "#f8fafc", padding: "14px 16px", textAlign: "left", fontSize: "0.8rem", fontWeight: "700", color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e2e8f0" },
-  td: { padding: "14px 16px", borderBottom: "1px solid #f1f5f9", color: "#334155" },
+  td: { padding: "14px 16px", borderBottom: "1px solid #f1f5f9", color: "#334155", verticalAlign: "top" },
 
-  modalOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(2px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 },
-  modalContent: { background: "white", padding: "32px", borderRadius: "16px", width: "700px", maxWidth: "95%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)" },
+  // MODALS (Exact match to ProgramOverview)
+  overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
+  modal: { backgroundColor: "#ffffff", padding: "30px", borderRadius: "12px", width: "700px", maxWidth: "90%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" },
 
   sectionLabel: { fontSize: "0.85rem", fontWeight: "700", color: "#64748b", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.05em" },
   formRow: { display: "flex", gap: "20px", marginBottom: "16px" },
@@ -46,6 +59,7 @@ const formatGermanDate = (isoDate) => {
     return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
+// Configured exclusively to requirements
 const SCOPE_CATEGORIES = {
     University: [
         { value: "University Open Days", label: "University Open Days" },
@@ -86,6 +100,11 @@ export default function ConstraintOverview() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  // Filtering & Deletion State
+  const [scopeFilter, setScopeFilter] = useState("ALL");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
 
   // DRAFT STATE
   const [draft, setDraft] = useState({
@@ -144,7 +163,6 @@ export default function ConstraintOverview() {
     let generatedText = "";
 
     switch (draft.category) {
-      // University
       case "University Open Days":
         const daysText = builder.selectedDays.length > 0 ? builder.selectedDays.join(", ") : "No Days";
         generatedText = `${entity} is open on: ${daysText}.`;
@@ -158,8 +176,6 @@ export default function ConstraintOverview() {
       case "Time Definition":
         generatedText = `Standard lecture slots are ${builder.slotDuration} minutes long with a ${builder.breakDuration} minute break.`;
         break;
-
-      // Module / Program
       case "Delivery Mode":
         generatedText = `${entity} must be conducted ${builder.deliveryMode}.`;
         break;
@@ -169,9 +185,7 @@ export default function ConstraintOverview() {
       case "Unavailable Days":
         generatedText = `${entity} is unavailable on ${builder.day}s.`;
         break;
-
       default:
-        // Do not overwrite Custom if it has content
         if (draft.category === "Custom") {
             if (!draft.rule_text) {
                 generatedText = "Enter custom rule description here.";
@@ -261,21 +275,16 @@ export default function ConstraintOverview() {
   function openAdd() {
     setEditingId(null);
     setDraft({
-      name: "", category: "University Policy", scope: "University", target_id: "0",
+      name: "", category: "Custom", scope: "University", target_id: "0",
       valid_from: "", valid_to: "", rule_text: "", is_enabled: true
     });
     setBuilder(prev => ({
         ...prev,
         day: "Friday",
-        limit: "4 hours",
-        gap: "at least 1 hour",
         startTime: "08:00",
         endTime: "20:00",
-        semesterSeason: "Winter",
-        semesterYear: new Date().getFullYear(),
         slotDuration: "90",
         breakDuration: "15",
-        workloadLimit: "18",
         deliveryMode: "Onsite",
         holidayName: "Public Holiday",
         customDuration: "180",
@@ -299,9 +308,24 @@ export default function ConstraintOverview() {
     setModalOpen(true);
   }
 
+  // --- DELETE LOGIC ---
+  const confirmDelete = (item) => {
+      setItemToDelete(item);
+      setDeleteModalOpen(true);
+  };
+
+  const handleDelete = async () => {
+      if (!itemToDelete) return;
+      try {
+          await api.deleteConstraint(itemToDelete.id);
+          setDeleteModalOpen(false);
+          setItemToDelete(null);
+          loadData();
+      } catch (e) { alert("Error deleting constraint."); }
+  };
+
   async function save() {
     try {
-      // ✅ SANITIZATION: Send explicit fields only to avoid DB errors when saving existing models
       const payload = {
         name: draft.name,
         category: draft.category,
@@ -466,6 +490,20 @@ export default function ConstraintOverview() {
   const currentCategories = SCOPE_CATEGORIES[draft.scope] || SCOPE_CATEGORIES["University"];
   const showGenericValidity = !["Holiday"].includes(draft.category);
 
+  // --- FILTER & GROUP LOGIC ---
+  const groupedConstraints = useMemo(() => {
+      let filtered = constraints;
+      if (scopeFilter !== "ALL") {
+          filtered = constraints.filter(c => c.scope === scopeFilter);
+      }
+      const groups = {};
+      filtered.forEach(c => {
+          if (!groups[c.scope]) groups[c.scope] = [];
+          groups[c.scope].push(c);
+      });
+      return groups;
+  }, [constraints, scopeFilter]);
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -476,76 +514,103 @@ export default function ConstraintOverview() {
         <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openAdd}>+ New Rule</button>
       </div>
 
-      <div style={styles.tableContainer}>
-        <table style={styles.table}>
-            <thead style={{background:'#f8fafc'}}>
-            <tr>
-                <th style={styles.th}>Rule Name</th>
-                <th style={styles.th}>Scope & Target</th>
-                <th style={styles.th}>Description</th>
-                <th style={styles.th}>Date of Creation</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Action</th>
-            </tr>
-            </thead>
-            <tbody>
-            {constraints.length === 0 && (
-                <tr><td colSpan="6" style={{...styles.td, textAlign:'center', color:'#94a3b8', padding:'30px'}}>No rules defined yet.</td></tr>
-            )}
-            {constraints.map(c => {
-                const targetName = (targets[c.scope?.toUpperCase()] || []).find(t => String(t.id) === String(c.target_id))?.name || "All";
-                const isGlobal = String(c.target_id) === "0";
-
-                return (
-                <tr key={c.id}>
-                    <td style={styles.td}>
-                        <div style={{fontWeight:'600', color:'#0f172a'}}>{c.name}</div>
-                        <div style={{fontSize:'0.8rem', color:'#64748b'}}>{c.category}</div>
-                    </td>
-                    <td style={styles.td}>
-                        <span style={{...styles.badge, background:'#e2e8f0', color:'#475569'}}>{c.scope}</span>
-                        {!isGlobal && <div style={{marginTop:'4px', fontSize:'0.9rem', fontWeight:'500'}}>{targetName}</div>}
-                    </td>
-                    <td style={styles.td}>
-                        <div style={{fontSize:'0.9rem', color:'#334155', lineHeight:'1.4'}}>
-                            "{c.rule_text}"
-                        </div>
-                        {c.valid_from && (
-                            <div style={{fontSize:'0.8rem', color:'#64748b', marginTop:'4px'}}>
-                                📅 {formatDate(c.valid_from)} → {formatDate(c.valid_to)}
-                            </div>
-                        )}
-                    </td>
-                    <td style={styles.td}>
-                        <div style={{fontSize:'0.85rem', color:'#64748b'}}>
-                            {formatGermanDate(c.created_at || c.createdAt)}
-                        </div>
-                    </td>
-                    <td style={styles.td}>
-                        <span style={{
-                            ...styles.badge,
-                            background: c.is_enabled ? '#dcfce7' : '#f1f5f9',
-                            color: c.is_enabled ? '#166534' : '#94a3b8'
-                        }}>
-                            {c.is_enabled ? "Active" : "Disabled"}
-                        </span>
-                    </td>
-                    <td style={styles.td}>
-                        <div style={{display:'flex'}}>
-                            <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(c)}>Edit</button>
-                            <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => api.deleteConstraint(c.id).then(loadData)}>Delete</button>
-                        </div>
-                    </td>
-                </tr>
-                );
-            })}
-            </tbody>
-        </table>
+      <div style={styles.controlsBar}>
+          <div style={styles.filterContainer}>
+              <label style={{fontSize:'0.9rem', fontWeight:'600'}}>Filter by Scope:</label>
+              <select
+                style={{...styles.select, width:'auto', minWidth:'200px'}}
+                value={scopeFilter}
+                onChange={e => setScopeFilter(e.target.value)}
+              >
+                  <option value="ALL">All Scopes</option>
+                  {Object.keys(SCOPE_CATEGORIES).map(scope => (
+                      <option key={scope} value={scope}>{scope}</option>
+                  ))}
+              </select>
+          </div>
       </div>
 
+      {Object.keys(groupedConstraints).length === 0 ? (
+          <div style={{padding:'40px', textAlign:'center', color:'#94a3b8', background:'#f8fafc', borderRadius:'10px'}}>
+              No rules found matching your filter.
+          </div>
+      ) : (
+          Object.keys(groupedConstraints).sort().map(scope => (
+              <div key={scope} style={styles.groupSection}>
+                  <div style={styles.groupHeader}>
+                      {scope}
+                      <span style={styles.groupCount}>{groupedConstraints[scope].length}</span>
+                  </div>
+                  <div style={styles.tableContainer}>
+                    <table style={styles.table}>
+                        <thead style={{background:'#f8fafc'}}>
+                        <tr>
+                            <th style={styles.th}>Rule Name</th>
+                            <th style={styles.th}>Target</th>
+                            <th style={styles.th}>Description</th>
+                            <th style={styles.th}>Date of Creation</th>
+                            <th style={styles.th}>Status</th>
+                            <th style={styles.th}>Action</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {groupedConstraints[scope].map(c => {
+                            const targetName = (targets[c.scope?.toUpperCase()] || []).find(t => String(t.id) === String(c.target_id))?.name || "All";
+                            const isGlobal = String(c.target_id) === "0";
+
+                            return (
+                            <tr key={c.id}>
+                                <td style={styles.td}>
+                                    <div style={{fontWeight:'600', color:'#0f172a'}}>{c.name}</div>
+                                    <div style={{fontSize:'0.8rem', color:'#64748b'}}>{c.category}</div>
+                                </td>
+                                <td style={styles.td}>
+                                    <div style={{fontSize:'0.9rem', fontWeight:'500'}}>{isGlobal ? "Global / All" : targetName}</div>
+                                </td>
+                                <td style={styles.td}>
+                                    <div style={{fontSize:'0.9rem', color:'#334155', lineHeight:'1.4'}}>
+                                        "{c.rule_text}"
+                                    </div>
+                                    {c.valid_from && (
+                                        <div style={{fontSize:'0.8rem', color:'#64748b', marginTop:'4px'}}>
+                                            📅 {formatDate(c.valid_from)} → {formatDate(c.valid_to)}
+                                        </div>
+                                    )}
+                                </td>
+                                <td style={styles.td}>
+                                    <div style={{fontSize:'0.85rem', color:'#64748b'}}>
+                                        {formatGermanDate(c.created_at || c.createdAt)}
+                                    </div>
+                                </td>
+                                <td style={styles.td}>
+                                    <span style={{
+                                        ...styles.badge,
+                                        background: c.is_enabled ? '#dcfce7' : '#f1f5f9',
+                                        color: c.is_enabled ? '#166534' : '#94a3b8'
+                                    }}>
+                                        {c.is_enabled ? "Active" : "Disabled"}
+                                    </span>
+                                </td>
+                                <td style={styles.td}>
+                                    <div style={styles.actionContainer}>
+                                        <button style={{...styles.actionBtn, ...styles.editBtn}} onClick={() => openEdit(c)}>Edit</button>
+                                        <button style={{...styles.actionBtn, ...styles.delBtn}} onClick={() => confirmDelete(c)}>Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            );
+                        })}
+                        </tbody>
+                    </table>
+                  </div>
+              </div>
+          ))
+      )}
+
+      {/* --- ADD/EDIT MODAL --- */}
       {modalOpen && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
                 <h3 style={{margin:0, fontSize:'1.25rem', color:'#0f172a'}}>{editingId ? "Edit Rule" : "Create New Rule"}</h3>
                 <button onClick={() => setModalOpen(false)} style={{border:'none', background:'transparent', fontSize:'1.5rem', cursor:'pointer', color:'#94a3b8'}}>×</button>
@@ -635,6 +700,53 @@ export default function ConstraintOverview() {
           </div>
         </div>
       )}
+
+      {/* --- DELETE CONFIRMATION MODAL --- */}
+      {deleteModalOpen && (
+          <DeleteConfirmationModal
+            title="Delete Constraint?"
+            msg="Are you sure you want to delete this rule? This action cannot be undone."
+            itemName={itemToDelete?.name}
+            onClose={() => setDeleteModalOpen(false)}
+            onConfirm={handleDelete}
+          />
+      )}
     </div>
   );
+}
+
+function DeleteConfirmationModal({ title, msg, itemName, onClose, onConfirm }) {
+    const [input, setInput] = useState("");
+    const isMatch = input === "DELETE";
+
+    return (
+        <div style={styles.overlay}>
+            <div style={{...styles.modal, width:'450px', maxHeight:'none'}}>
+                <h3 style={{ marginTop: 0, color: "#991b1b" }}>{title}</h3>
+                <p style={{ color: "#4b5563", marginBottom: "20px", lineHeight:'1.5' }}>
+                    {msg} <br/>
+                    {itemName && <strong>{itemName}</strong>}
+                </p>
+                <p style={{ fontSize: "0.9rem", fontWeight: "bold", marginBottom: "8px", color:'#374151' }}>
+                    Type "DELETE" to confirm:
+                </p>
+                <input
+                    style={styles.input}
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    placeholder="DELETE"
+                />
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                    <button style={{ ...styles.btn, background: "#e5e7eb", color: "#374151" }} onClick={onClose}>Cancel</button>
+                    <button
+                        disabled={!isMatch}
+                        style={{ ...styles.btn, background: isMatch ? "#dc2626" : "#fca5a5", color: "white", cursor: isMatch ? "pointer" : "not-allowed" }}
+                        onClick={onConfirm}
+                    >
+                        Permanently Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 }
