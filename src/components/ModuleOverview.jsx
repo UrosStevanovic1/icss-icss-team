@@ -17,53 +17,26 @@ const styles = {
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
     outline: "none"
   },
-  listContainer: { display: "flex", flexDirection: "column", gap: "12px" },
-  listHeader: {
-    display: "grid",
-    gridTemplateColumns: "80px 2fr 1.5fr 80px 100px 60px 2.2fr 1.2fr 110px",
-    gap: "15px",
-    padding: "0 25px",
-    marginBottom: "5px",
-    color: "#94a3b8",
-    fontSize: "0.75rem",
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    alignItems: "center"
-  },
-  listCard: {
-    background: "white",
-    borderRadius: "8px",
-    border: "none",
-    cursor: "pointer",
-    transition: "background-color 0.2s ease",
-    display: "grid",
-    gridTemplateColumns: "80px 2fr 1.5fr 80px 100px 60px 1.2fr 1.2fr 110px",
-    alignItems: "center",
-    padding: "16px 25px",
-    gap: "15px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
-  },
-  listCardHover: { backgroundColor: "#f1f5f9" },
-  codeText: { fontWeight: "700", color: "#303030", fontSize: "0.95rem" },
-  nameText: { fontWeight: "600", color: "#1e293b", lineHeight: "1.4" },
-  programLink: { color: "#475569", cursor: "pointer", textDecoration: "underline", fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  centeredCell: { textAlign: "center", fontSize: "0.9rem", color: "#64748b" },
-  cellText: { fontSize: "0.9rem", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  catBadge: { padding: "4px 8px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: "bold", textAlign: "center", textTransform: "uppercase", display: "inline-block" },
-  catCore: { background: "#dbeafe", color: "#1e40af" },
-  catElective: { background: "#fef3c7", color: "#92400e" },
-  catShared: { background: "#f3e8ff", color: "#1ad40d" },
+
+  // ✅ REPLACED GRID WITH FIXED TABLE STYLING
+  tableContainer: { border: "1px solid #e2e8f0", borderRadius: "10px", overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" },
+  table: { width: "100%", borderCollapse: "collapse", background: "white", fontSize: "0.95rem", tableLayout: "fixed" },
+  th: { background: "#f8fafc", padding: "14px 16px", textAlign: "left", fontSize: "0.8rem", fontWeight: "700", color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e2e8f0" },
+  td: { padding: "14px 16px", borderBottom: "1px solid #f1f5f9", color: "#334155", verticalAlign: "middle", wordWrap: "break-word" },
+
+  programLink: { color: "#475569", cursor: "pointer", textDecoration: "underline", fontSize: "0.85rem" },
+
   btn: { padding: "8px 16px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.9rem", fontWeight: "500", transition: "0.2s" },
   primaryBtn: { background: "#3b82f6", color: "white" },
+
   actionContainer: { display: "flex", gap: "8px", justifyContent: "flex-end" },
-  actionBtn: { padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: "600" },
-  editBtn: { background: "#e2e8f0", color: "#475569" },
-  deleteBtn: { background: "#fee2e2", color: "#ef4444" },
+  actionBtn: { padding: "4px 8px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: "600" },
+  editBtn: { background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" },
+  delBtn: { background: "#fee2e2", color: "#ef4444" },
+
   overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
   modal: {
     backgroundColor: "#ffffff",
-    // ✅ better fit on small screens
     padding: "clamp(16px, 3vw, 30px)",
     borderRadius: "12px",
     width: "min(650px, 95vw)",
@@ -128,7 +101,6 @@ export default function ModuleOverview({ onNavigate }) {
     ects: 5,
     room_type: "Lecture Classroom",
     semester: 1,
-    // (kept for backend compatibility, but NOT shown in UI)
     assessment_type: "Written Exam",
     assessments: [{ type: "Written Exam", weight: 100 }],
     category: "Core",
@@ -260,12 +232,6 @@ export default function ModuleOverview({ onNavigate }) {
     }
   };
 
-  const getCategoryStyle = (cat) => {
-    if (cat === "Core") return styles.catCore;
-    if (cat === "Elective") return styles.catElective;
-    return styles.catShared;
-  };
-
   const assessmentTotal = useMemo(() => {
     return (draft.assessments || []).reduce((sum, a) => sum + safeInt(a.weight, 0), 0);
   }, [draft.assessments]);
@@ -389,82 +355,79 @@ export default function ModuleOverview({ onNavigate }) {
         <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={openAdd}>+ New Module</button>
       </div>
 
-      <div style={styles.listHeader}>
-        <div>Code</div>
-        <div>Module Name</div>
-        <div>Program</div>
-        <div style={{ textAlign: "center" }}>Semester</div>
-        <div style={{ textAlign: "center" }}>Category</div>
-        <div style={{ textAlign: "center" }}>ECTS</div>
-        <div>Assessment</div>
-        <div>Room Type</div>
-        <div style={{ textAlign: "right" }}>Action</div>
-      </div>
-
-      <div style={styles.listContainer}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Loading modules...</div>
-        ) : (
-          filteredModules.map((m) => {
-            const prog = programs.find(p => p.id === m.program_id);
-            return (
-              <div
-                key={m.module_code}
-                style={{ ...styles.listCard, ...(hoverId === m.module_code ? styles.listCardHover : {}) }}
-                onMouseEnter={() => setHoverId(m.module_code)}
-                onMouseLeave={() => setHoverId(null)}
-              >
-                <div style={styles.codeText}>{m.module_code}</div>
-                <div style={styles.nameText}>{m.name}</div>
-
-                <div>
-                  {prog ? (
-                    <span
-                      style={styles.programLink}
-                      onClick={(e) => { e.stopPropagation(); handleProgramClick(prog.id); }}
-                    >
-                      {prog.name}
-                    </span>
-                  ) : (
-                    <span style={{ ...styles.cellText, fontStyle: 'italic' }}>Global</span>
-                  )}
-                </div>
-
-                <div style={styles.centeredCell}>{m.semester}</div>
-
-                <div style={{ textAlign: "center" }}>
-                  <span style={{ ...styles.catBadge, ...getCategoryStyle(m.category) }}>{m.category}</span>
-                </div>
-
-                <div style={{ ...styles.centeredCell, fontWeight: 'bold', color: '#475569' }}>{m.ects}</div>
-
-                {(() => {
-                  const assessmentText = formatAssessmentForList(m);
+      <div style={styles.tableContainer}>
+        <table style={styles.table}>
+            <thead style={{background:'#f8fafc'}}>
+              <tr>
+                <th style={{...styles.th, width: '10%'}}>Code</th>
+                <th style={{...styles.th, width: '20%'}}>Module Name</th>
+                <th style={{...styles.th, width: '15%'}}>Program</th>
+                <th style={{...styles.th, width: '6%', textAlign: 'center'}}>Sem</th>
+                <th style={{...styles.th, width: '10%', textAlign: 'center'}}>Category</th>
+                <th style={{...styles.th, width: '6%', textAlign: 'center'}}>ECTS</th>
+                <th style={{...styles.th, width: '14%'}}>Assessment</th>
+                <th style={{...styles.th, width: '10%'}}>Room Type</th>
+                <th style={{...styles.th, width: '9%', textAlign: 'right'}}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Loading modules...</td>
+                </tr>
+              ) : (
+                filteredModules.map((m) => {
+                  const prog = programs.find(p => p.id === m.program_id);
                   return (
-                    <div
-                      style={{ ...styles.cellText, whiteSpace: "normal", overflow: "visible", textOverflow: "clip" }}
-                      title={assessmentText}
+                    <tr
+                      key={m.module_code}
+                      onMouseEnter={() => setHoverId(m.module_code)}
+                      onMouseLeave={() => setHoverId(null)}
+                      style={{ backgroundColor: hoverId === m.module_code ? "#f1f5f9" : "transparent" }}
                     >
-                      {assessmentText}
-                    </div>
+                      <td style={{...styles.td, fontWeight: "700", color: "#303030"}}>{m.module_code}</td>
+                      <td style={{...styles.td, fontWeight: "600", color: "#1e293b"}}>{m.name}</td>
+                      <td style={styles.td}>
+                        {prog ? (
+                          <span
+                            style={styles.programLink}
+                            onClick={(e) => { e.stopPropagation(); handleProgramClick(prog.id); }}
+                          >
+                            {prog.name}
+                          </span>
+                        ) : (
+                          <span style={{ fontStyle: 'italic', color: '#64748b' }}>Global</span>
+                        )}
+                      </td>
+                      <td style={{...styles.td, textAlign: "center"}}>{m.semester}</td>
+                      {/* ✅ BLACK TEXT FOR CATEGORY, NO BACKGROUND */}
+                      <td style={{...styles.td, textAlign: "center", fontWeight: "600", color: "#000"}}>
+                        {m.category}
+                      </td>
+                      <td style={{...styles.td, textAlign: "center", fontWeight: 'bold'}}>{m.ects}</td>
+                      <td style={{...styles.td, fontSize: '0.85rem'}}>
+                        {formatAssessmentForList(m)}
+                      </td>
+                      <td style={{...styles.td, fontSize: '0.85rem'}}>{m.room_type}</td>
+                      <td style={{...styles.td, textAlign: "right"}}>
+                        <div style={styles.actionContainer}>
+                          <button style={{ ...styles.actionBtn, ...styles.editBtn }} onClick={() => openEdit(m)}>Edit</button>
+                          <button style={{ ...styles.actionBtn, ...styles.delBtn }} onClick={() => initiateDelete(m)}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
                   );
-                })()}
-
-                <div style={styles.cellText}>{m.room_type}</div>
-
-                <div style={styles.actionContainer}>
-                  <button style={{ ...styles.actionBtn, ...styles.editBtn }} onClick={() => openEdit(m)}>Edit</button>
-                  <button style={{ ...styles.actionBtn, ...styles.deleteBtn }} onClick={() => initiateDelete(m)}>Del</button>
-                </div>
-              </div>
-            );
-          })
-        )}
-        {!loading && filteredModules.length === 0 && (
-          <div style={{ color: "#94a3b8", padding: "40px", textAlign: "center", fontStyle: "italic" }}>
-            No modules found.
-          </div>
-        )}
+                })
+              )}
+              {!loading && filteredModules.length === 0 && (
+                <tr>
+                  <td colSpan="9" style={{ color: "#94a3b8", padding: "40px", textAlign: "center", fontStyle: "italic" }}>
+                    No modules found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+        </table>
       </div>
 
       {(formMode === "add" || formMode === "edit") && (
@@ -480,7 +443,6 @@ export default function ModuleOverview({ onNavigate }) {
               </button>
             </div>
 
-            {/*  wraps on small screens */}
             <div style={styles.formRow}>
               <div style={{ ...styles.formGroup, flex: 1, minWidth: 220 }}>
                 <label style={styles.label}>Module Code</label>
@@ -502,7 +464,6 @@ export default function ModuleOverview({ onNavigate }) {
               </div>
             </div>
 
-            {/*  wraps on small screens */}
             <div style={styles.formRow}>
               <div style={{ ...styles.formGroup, flex: 1, minWidth: 180 }}>
                 <label style={styles.label}>ECTS</label>
@@ -540,8 +501,6 @@ export default function ModuleOverview({ onNavigate }) {
                 </select>
               </div>
             </div>
-
-            {/*  Assessment summary REMOVED from add/edit page (no field here) */}
 
             <div style={styles.formRow}>
               <div style={{ ...styles.formGroup, flex: 1, minWidth: 240 }}>
@@ -653,7 +612,6 @@ export default function ModuleOverview({ onNavigate }) {
             <div style={{ ...styles.formGroup, background: '#f9f9f9', padding: '15px', borderRadius: '6px', border: '1px solid #eee' }}>
               <label style={{ ...styles.label, marginBottom: '10px' }}>Linked Specializations</label>
 
-              {/*  wraps on small screens */}
               <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: "wrap" }}>
                 <select
                   style={{ ...styles.select, marginBottom: 0, flex: "1 1 260px", minWidth: 240 }}
@@ -729,35 +687,35 @@ function DeleteConfirmationModal({ moduleName, onClose, onConfirm }) {
 
   return (
     <div style={styles.overlay}>
-      <div style={{ ...styles.modal, width: 'min(450px, 95vw)', maxHeight: 'none' }}>
-        <h3 style={{ marginTop: 0, color: "#991b1b" }}>⚠️ Delete Module?</h3>
-        <p style={{ color: "#4b5563", marginBottom: "20px", lineHeight: '1.5' }}>
-          Are you sure you want to delete <strong>{moduleName}</strong>?<br />
-          This action cannot be undone.
+      <div style={{ ...styles.modal, width: '450px', maxHeight: 'none' }}>
+        <h3 style={{ marginTop: 0, color: "#991b1b", marginBottom: "15px" }}>Delete Module?</h3>
+
+        <p style={{ color: "#4b5563", marginBottom: "25px", lineHeight: '1.5' }}>
+          Are you sure you want to delete this module? This action cannot be undone.
+          {moduleName && <strong style={{display: 'block', marginTop: '10px'}}>{moduleName}</strong>}
         </p>
-        <p style={{ fontSize: "0.9rem", fontWeight: "bold", marginBottom: "8px", color: '#374151' }}>
-          Type "DELETE" to confirm:
-        </p>
-        <input
-          style={styles.input}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="DELETE"
-        />
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap" }}>
-          <button style={{ ...styles.btn, background: "#e5e7eb", color: "#374151" }} onClick={onClose}>Cancel</button>
-          <button
-            disabled={!isMatch}
-            style={{
-              ...styles.btn,
-              background: isMatch ? "#dc2626" : "#fca5a5",
-              color: "white",
-              cursor: isMatch ? "pointer" : "not-allowed"
-            }}
-            onClick={onConfirm}
-          >
-            Permanently Delete
-          </button>
+
+        <div style={{ background: "#fef2f2", padding: "15px", borderRadius: "8px", border: "1px solid #fecaca", marginBottom: "25px" }}>
+            <p style={{ fontSize: "0.9rem", fontWeight: "bold", margin: "0 0 10px 0", color:'#991b1b' }}>
+                Type "DELETE" to confirm:
+            </p>
+            <input
+                style={{...styles.input, marginBottom: 0, borderColor: '#fca5a5'}}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder="DELETE"
+            />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+            <button style={{ ...styles.btn, background: "#e5e7eb", color: "#374151" }} onClick={onClose}>Cancel</button>
+            <button
+                disabled={!isMatch}
+                style={{ ...styles.btn, background: isMatch ? "#dc2626" : "#fca5a5", color: "white", cursor: isMatch ? "pointer" : "not-allowed" }}
+                onClick={onConfirm}
+            >
+                Permanently Delete
+            </button>
         </div>
       </div>
     </div>
