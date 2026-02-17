@@ -120,10 +120,32 @@ const styles = {
 const STANDARD_TYPES = ["Lecture Classroom", "Computer Lab", "Seminar"];
 const CAMPUSES = ["Berlin", "Dusseldorf", "Munich"];
 
+// ✅ roles helper (same logic as Layout uses)
+function getCleanRole() {
+  const raw = localStorage.getItem("userRole");
+  return (raw || "").replace(/"/g, "").trim().toLowerCase();
+}
+
 export default function RoomOverview() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+
+  // ✅ ROLE (keeps in sync with dropdown switching)
+  const [currentRole, setCurrentRole] = useState(() => getCleanRole());
+
+  useEffect(() => {
+    const handleRoleUpdate = () => setCurrentRole(getCleanRole());
+    window.addEventListener("role-changed", handleRoleUpdate);
+    window.addEventListener("storage", handleRoleUpdate);
+    return () => {
+      window.removeEventListener("role-changed", handleRoleUpdate);
+      window.removeEventListener("storage", handleRoleUpdate);
+    };
+  }, []);
+
+  // ✅ Admin/PM can manage. Lecturer can only view.
+  const canManageRooms = currentRole === "pm" || currentRole === "admin";
 
   // --- USER PROFILE LOGIC ---
   const [userProfile] = useState({
@@ -187,6 +209,7 @@ export default function RoomOverview() {
   }, [loadRooms]); // Now safe to include loadRooms
 
   function openAdd() {
+    if (!canManageRooms) return;
     setEditingId(null);
     setDraft({
       name: "",
@@ -201,6 +224,7 @@ export default function RoomOverview() {
   }
 
   function openEdit(r) {
+    if (!canManageRooms) return;
     setEditingId(r.id);
     setDraft({
       name: r.name,
@@ -215,6 +239,7 @@ export default function RoomOverview() {
   }
 
   function addNewType() {
+      if (!canManageRooms) return;
       const newType = prompt("Enter new room type:");
       if (newType && newType.trim() !== "") {
           const formatted = newType.trim();
@@ -226,6 +251,7 @@ export default function RoomOverview() {
   }
 
   function deleteType() {
+      if (!canManageRooms) return;
       if (!draft.type) return;
       if (STANDARD_TYPES.includes(draft.type)) return alert("Cannot delete standard room types.");
       if (window.confirm(`Remove "${draft.type}" from the list?`)) {
@@ -235,6 +261,8 @@ export default function RoomOverview() {
   }
 
   async function save() {
+    if (!canManageRooms) return;
+
     if (!draft.name.trim() || !draft.capacity || !draft.type) {
       return alert("Name, Type, and Capacity are required.");
     }
@@ -267,6 +295,7 @@ export default function RoomOverview() {
   }
 
   async function remove(id) {
+    if (!canManageRooms) return;
     if (!window.confirm("Are you sure you want to delete this room?")) return;
     try {
       await api.deleteRoom(id);
@@ -334,9 +363,13 @@ export default function RoomOverview() {
             {selectedCampus === userProfile.homeCampus ? "Showing your home location" : "Viewing alternate location"}
           </p>
         </div>
-        <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openAdd}>
-          + Add New Room
-        </button>
+
+        {/* ✅ only admin/pm can add */}
+        {canManageRooms && (
+          <button style={{...styles.btn, ...styles.primaryBtn}} onClick={openAdd}>
+            + Add New Room
+          </button>
+        )}
       </div>
 
       <input
@@ -355,13 +388,17 @@ export default function RoomOverview() {
               <th style={styles.th}>Details</th>
               <th style={styles.th}>Capacity</th>
               <th style={{...styles.th, textAlign:'center'}}>Status</th>
-              <th style={{...styles.th, textAlign:'right'}}>Actions</th>
+
+              {/* ✅ only admin/pm see actions column */}
+              {canManageRooms && (
+                <th style={{...styles.th, textAlign:'right'}}>Actions</th>
+              )}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{...styles.td, textAlign: 'center', padding: '50px', color: '#a0aec0'}}>
+                <td colSpan={canManageRooms ? 6 : 5} style={{...styles.td, textAlign: 'center', padding: '50px', color: '#a0aec0'}}>
                   No rooms found.
                 </td>
               </tr>
@@ -379,18 +416,22 @@ export default function RoomOverview() {
                     {r.available ? 'Available' : 'Unavailable'}
                   </span>
                 </td>
-                <td style={{...styles.td, textAlign:'right', whiteSpace:'nowrap'}}>
-                  <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(r)}>Edit</button>
-                  <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(r.id)}>Delete</button>
-                </td>
+
+                {/* ✅ only admin/pm see edit/delete */}
+                {canManageRooms && (
+                  <td style={{...styles.td, textAlign:'right', whiteSpace:'nowrap'}}>
+                    <button style={{...styles.btn, ...styles.editBtn}} onClick={() => openEdit(r)}>Edit</button>
+                    <button style={{...styles.btn, ...styles.deleteBtn}} onClick={() => remove(r.id)}>Delete</button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       )}
 
-      {/* --- MODAL --- */}
-      {(formMode === "add" || formMode === "edit") && (
+      {/* --- MODAL (only admin/pm) --- */}
+      {canManageRooms && (formMode === "add" || formMode === "edit") && (
         <div style={styles.modalOverlay}>
             <div style={styles.modalContent}>
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems: 'center'}}>
