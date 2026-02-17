@@ -5,20 +5,21 @@ const ENABLE_V2_FIELDS = true;
 
 const styles = {
   container: { padding: "20px", fontFamily: "'Inter', sans-serif", color: "#333", maxWidth: "1200px", margin: "0 auto" },
-  controlsBar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", gap: "15px", flexWrap: "wrap" },
+  controlsBar: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px", gap: "15px", flexWrap: "wrap" },
+  filtersContainer: { display: "flex", gap: "10px", flexWrap: "wrap", flex: 1 },
   searchBar: {
     padding: "10px 15px",
     borderRadius: "8px",
     border: "1px solid #cbd5e1",
     fontSize: "0.95rem",
     width: "100%",
-    maxWidth: "350px",
+    maxWidth: "250px",
     background: "white",
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    outline: "none"
+    outline: "none",
+    margin: 0
   },
 
-  // ✅ REPLACED GRID WITH FIXED TABLE STYLING
   tableContainer: { border: "1px solid #e2e8f0", borderRadius: "10px", overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" },
   table: { width: "100%", borderCollapse: "collapse", background: "white", fontSize: "0.95rem", tableLayout: "fixed" },
   th: { background: "#f8fafc", padding: "14px 16px", textAlign: "left", fontSize: "0.8rem", fontWeight: "700", color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #e2e8f0" },
@@ -26,8 +27,8 @@ const styles = {
 
   programLink: { color: "#475569", cursor: "pointer", textDecoration: "underline", fontSize: "0.85rem" },
 
-  btn: { padding: "8px 16px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.9rem", fontWeight: "500", transition: "0.2s" },
-  primaryBtn: { background: "#3b82f6", color: "white" },
+  btn: { padding: "10px 16px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.9rem", fontWeight: "600", transition: "all 0.2s", whiteSpace: "nowrap" },
+  primaryBtn: { background: "#3b82f6", color: "white", boxShadow: "0 2px 4px rgba(59,130,246,0.2)" },
 
   actionContainer: { display: "flex", gap: "8px", justifyContent: "flex-end" },
   actionBtn: { padding: "4px 8px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: "600" },
@@ -51,6 +52,7 @@ const styles = {
   label: { display: "block", marginBottom: "5px", fontWeight: "600", fontSize: "0.85rem", color: "#64748b" },
   input: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", boxSizing: "border-box", marginBottom: "15px" },
   select: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.95rem", background: "white", marginBottom: "15px" },
+  filterSelect: { padding: "10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.9rem", background: "white", outline: "none", cursor: "pointer", color: "#334155" },
   sectionBox: { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "14px", marginBottom: "15px" },
   sectionTitle: { margin: "0 0 10px 0", fontSize: "0.95rem", fontWeight: "700", color: "#334155" },
   row: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" },
@@ -89,7 +91,13 @@ export default function ModuleOverview({ onNavigate }) {
   const [specializations, setSpecializations] = useState([]);
   const [customRoomTypes, setCustomRoomTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Filter States
   const [query, setQuery] = useState("");
+  const [filterProgram, setFilterProgram] = useState("ALL");
+  const [filterAssessment, setFilterAssessment] = useState("ALL");
+  const [filterRoomType, setFilterRoomType] = useState("ALL");
+
   const [hoverId, setHoverId] = useState(null);
 
   const [formMode, setFormMode] = useState("overview");
@@ -140,8 +148,35 @@ export default function ModuleOverview({ onNavigate }) {
 
   const filteredModules = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return modules.filter(m => (m?.name || "").toLowerCase().includes(q) || (m?.module_code || "").toLowerCase().includes(q));
-  }, [modules, query]);
+
+    return modules.filter(m => {
+      // 1. Search Query
+      const matchesSearch = (m?.name || "").toLowerCase().includes(q) || (m?.module_code || "").toLowerCase().includes(q);
+
+      // 2. Program Filter
+      let matchesProgram = true;
+      if (filterProgram !== "ALL") {
+        if (filterProgram === "GLOBAL") matchesProgram = m.program_id === null;
+        else matchesProgram = String(m.program_id) === filterProgram;
+      }
+
+      // 3. Assessment Filter
+      let matchesAssessment = true;
+      if (filterAssessment !== "ALL") {
+        const ab = Array.isArray(m?.assessment_breakdown) ? m.assessment_breakdown : [];
+        if (ab.length > 0) {
+          matchesAssessment = ab.some(a => a.type === filterAssessment);
+        } else {
+          matchesAssessment = m.assessment_type === filterAssessment;
+        }
+      }
+
+      // 4. Room Type Filter
+      const matchesRoom = filterRoomType === "ALL" || m.room_type === filterRoomType;
+
+      return matchesSearch && matchesProgram && matchesAssessment && matchesRoom;
+    });
+  }, [modules, query, filterProgram, filterAssessment, filterRoomType]);
 
   const openAdd = () => {
     setEditingCode(null);
@@ -346,12 +381,57 @@ export default function ModuleOverview({ onNavigate }) {
   return (
     <div style={styles.container}>
       <div style={styles.controlsBar}>
-        <input
-          style={styles.searchBar}
-          placeholder="Search modules..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div style={styles.filtersContainer}>
+          <input
+            style={styles.searchBar}
+            placeholder="Search modules..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <select
+            style={styles.filterSelect}
+            value={filterProgram}
+            onChange={(e) => setFilterProgram(e.target.value)}
+          >
+            <option value="ALL">All Programs</option>
+            <option value="GLOBAL">Global (No Program)</option>
+            {programs.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+
+          <select
+            style={styles.filterSelect}
+            value={filterAssessment}
+            onChange={(e) => setFilterAssessment(e.target.value)}
+          >
+            <option value="ALL">All Assessments</option>
+            {ASSESSMENT_TYPES.map(a => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+
+          <select
+            style={styles.filterSelect}
+            value={filterRoomType}
+            onChange={(e) => setFilterRoomType(e.target.value)}
+          >
+            <option value="ALL">All Room Types</option>
+            <optgroup label="Standard">
+              {STANDARD_ROOM_TYPES.map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </optgroup>
+            {customRoomTypes.length > 0 && (
+              <optgroup label="Custom">
+                {customRoomTypes.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+
         <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={openAdd}>+ New Module</button>
       </div>
 
@@ -359,10 +439,11 @@ export default function ModuleOverview({ onNavigate }) {
         <table style={styles.table}>
             <thead style={{background:'#f8fafc'}}>
               <tr>
+                {/* ✅ WIDTHS ADJUSTED SLIGHTLY TO FIT "SEMESTER" */}
                 <th style={{...styles.th, width: '10%'}}>Code</th>
-                <th style={{...styles.th, width: '20%'}}>Module Name</th>
+                <th style={{...styles.th, width: '18%'}}>Module Name</th>
                 <th style={{...styles.th, width: '15%'}}>Program</th>
-                <th style={{...styles.th, width: '6%', textAlign: 'center'}}>Sem</th>
+                <th style={{...styles.th, width: '8%', textAlign: 'center'}}>Semester</th>
                 <th style={{...styles.th, width: '10%', textAlign: 'center'}}>Category</th>
                 <th style={{...styles.th, width: '6%', textAlign: 'center'}}>ECTS</th>
                 <th style={{...styles.th, width: '14%'}}>Assessment</th>
