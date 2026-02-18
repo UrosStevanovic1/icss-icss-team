@@ -65,7 +65,6 @@ const styles = {
   editBtn: { background: "#6c757d", color: "white" },
   deleteBtn: { background: "#dc3545", color: "white" },
 
-  // Icon Button for Add/Delete
   iconBtn: {
     padding: "8px",
     width: "35px",
@@ -128,7 +127,6 @@ const styles = {
 
   hint: { fontSize: "0.85rem", color: "#6b7280", marginTop: "8px" },
 
-  // ✅ Nice small modal (for creating domain)
   miniOverlay: {
     position: "fixed",
     top: 0,
@@ -186,13 +184,11 @@ export default function LecturerOverview() {
   const [formMode, setFormMode] = useState("overview"); // overview | add | edit
   const [editingId, setEditingId] = useState(null);
 
-  // Store custom locations found in DB or added by user
   const [customLocations, setCustomLocations] = useState([]);
 
-  // ✅ Domains (label list)
+  // ✅ Domains now come from DB: [{id, name}]
   const [domains, setDomains] = useState([]);
 
-  // ✅ Nice create-domain modal state
   const [showDomainModal, setShowDomainModal] = useState(false);
   const [newDomain, setNewDomain] = useState("");
   const [domainError, setDomainError] = useState("");
@@ -207,13 +203,14 @@ export default function LecturerOverview() {
     phone: "",
     location: "",
     teachingLoad: "",
-    domain: "",
+    // ✅ store domain_id in draft (string from <select>)
+    domain_id: "",
   });
 
   async function loadAll() {
     setLoading(true);
     try {
-      const lecData = await api.getLecturers();
+      const [lecData, domData] = await Promise.all([api.getLecturers(), api.getDomains()]);
 
       const mapped = (Array.isArray(lecData) ? lecData : []).map((x) => ({
         id: x.id,
@@ -226,25 +223,22 @@ export default function LecturerOverview() {
         phone: x.phone || "",
         location: x.location || "",
         teachingLoad: x.teaching_load || "",
+        // backend returns domain label in x.domain (from relationship/property)
         domain: x.domain || "",
+        domain_id: x.domain_id ?? null,
         fullName: `${x.first_name} ${x.last_name || ""}`.trim(),
       }));
 
       setLecturers(mapped);
 
-      // Extract existing custom locations from DB
       const existingCustom = mapped
         .map((l) => l.location)
         .filter((loc) => loc && loc.trim() !== "" && !STANDARD_LOCATIONS.includes(loc));
-
       setCustomLocations([...new Set(existingCustom)].sort());
 
-      // ✅ Extract existing domains from DB (labels)
-      const existingDomains = mapped
-        .map((l) => (l.domain || "").trim())
-        .filter((d) => d !== "");
-
-      setDomains([...new Set(existingDomains)].sort());
+      // ✅ domains from DB
+      const doms = Array.isArray(domData) ? domData : [];
+      setDomains(doms.map((d) => ({ id: d.id, name: d.name })));
     } catch (e) {
       alert("Error loading data: " + e.message);
       setLecturers([]);
@@ -270,7 +264,7 @@ export default function LecturerOverview() {
       phone: "",
       location: "",
       teachingLoad: "",
-      domain: "",
+      domain_id: "",
     });
     setFormMode("add");
   }
@@ -287,7 +281,8 @@ export default function LecturerOverview() {
       phone: row.phone || "",
       location: row.location || "",
       teachingLoad: row.teachingLoad || "",
-      domain: row.domain || "",
+      // ✅ keep domain_id in draft
+      domain_id: row.domain_id != null ? String(row.domain_id) : "",
     });
     setFormMode("edit");
   }
@@ -315,7 +310,6 @@ export default function LecturerOverview() {
     }
   }
 
-  // ✅ Open nice domain modal (instead of prompt)
   function openDomainModal() {
     setDomainError("");
     setNewDomain("");
@@ -328,35 +322,22 @@ export default function LecturerOverview() {
     setDomainError("");
   }
 
-  // ✅ Confirm add domain
-  function confirmAddDomain() {
-    const formatted = (newDomain || "").trim();
+  // ✅ Create domain in DB, then reload domains and select it
+  async function confirmAddDomain() {
+    const formatted = (newDomain || "").trim().toLowerCase();
 
     if (!formatted) {
       setDomainError("Domain name cannot be empty.");
       return;
     }
 
-    const exists = domains.some((d) => d.toLowerCase() === formatted.toLowerCase());
-    if (exists) {
-      setDomainError("This domain already exists.");
-      return;
-    }
-
-    const updated = [...domains, formatted].sort((a, b) => a.localeCompare(b));
-    setDomains(updated);
-    setDraft({ ...draft, domain: formatted });
-    closeDomainModal();
-  }
-
-  // ✅ Optional: delete domain label from list (does NOT delete from DB, only from dropdown list)
-  function deleteDomainFromList() {
-    if (!draft.domain) return;
-    if (!domains.includes(draft.domain)) return;
-
-    if (window.confirm(`Remove "${draft.domain}" from the domain dropdown list? (This won't edit DB rows)`)) {
-      setDomains(domains.filter((d) => d !== draft.domain));
-      setDraft({ ...draft, domain: "" });
+    try {
+      const created = await api.createDomain({ name: formatted });
+      await loadAll();
+      setDraft((prev) => ({ ...prev, domain_id: String(created.id) }));
+      closeDomainModal();
+    } catch (e) {
+      setDomainError(e.message || "Failed to create domain");
     }
   }
 
@@ -385,7 +366,8 @@ export default function LecturerOverview() {
       phone: draft.phone.trim() || null,
       location: draft.location.trim() || null,
       teaching_load: draft.teachingLoad.trim() || null,
-      domain: (draft.domain || "").trim() || null,
+      // ✅ send domain_id to backend (NOT domain string)
+      domain_id: draft.domain_id ? Number(draft.domain_id) : null,
     };
 
     try {
@@ -473,7 +455,6 @@ export default function LecturerOverview() {
         </table>
       )}
 
-      {/* --- MODAL: Add/Edit Lecturer --- */}
       {(formMode === "add" || formMode === "edit") && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
@@ -487,14 +468,9 @@ export default function LecturerOverview() {
               </button>
             </div>
 
-            {/* Title Selector */}
             <div style={styles.formGroup}>
               <label style={styles.label}>Title</label>
-              <select
-                style={styles.select}
-                value={draft.title}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-              >
+              <select style={styles.select} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })}>
                 {TITLES.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -524,7 +500,6 @@ export default function LecturerOverview() {
               </div>
             </div>
 
-            {/* Location + Employment Type */}
             <div style={{ display: "flex", gap: "15px", marginBottom: "15px" }}>
               <div style={{ flex: 1 }}>
                 <label style={styles.label}>Location</label>
@@ -553,12 +528,7 @@ export default function LecturerOverview() {
                     )}
                   </select>
 
-                  <button
-                    type="button"
-                    title="Add new location"
-                    onClick={addNewLocation}
-                    style={{ ...styles.iconBtn, background: "#e2e6ea" }}
-                  >
+                  <button type="button" title="Add new location" onClick={addNewLocation} style={{ ...styles.iconBtn, background: "#e2e6ea" }}>
                     +
                   </button>
 
@@ -593,45 +563,25 @@ export default function LecturerOverview() {
               </div>
             </div>
 
-            {/* ✅ Domain selector + nice create modal */}
+            {/* ✅ Domain selector now uses DB domains + domain_id */}
             <div style={styles.formGroup}>
               <label style={styles.label}>Domain</label>
               <div style={{ display: "flex", gap: "5px" }}>
                 <select
                   style={{ ...styles.select, flex: 1 }}
-                  value={draft.domain}
-                  onChange={(e) => setDraft({ ...draft, domain: e.target.value })}
+                  value={draft.domain_id}
+                  onChange={(e) => setDraft({ ...draft, domain_id: e.target.value })}
                 >
                   <option value="">-- Select Domain --</option>
                   {domains.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
+                    <option key={d.id} value={String(d.id)}>
+                      {d.name}
                     </option>
                   ))}
                 </select>
 
-                <button
-                  type="button"
-                  title="Add new domain"
-                  onClick={openDomainModal}
-                  style={{ ...styles.iconBtn, background: "#e2e6ea" }}
-                >
+                <button type="button" title="Add new domain" onClick={openDomainModal} style={{ ...styles.iconBtn, background: "#e2e6ea" }}>
                   +
-                </button>
-
-                <button
-                  type="button"
-                  title="Remove domain from dropdown list"
-                  onClick={deleteDomainFromList}
-                  disabled={!domains.includes(draft.domain)}
-                  style={{
-                    ...styles.iconBtn,
-                    background: domains.includes(draft.domain) ? "#f8d7da" : "#eee",
-                    color: domains.includes(draft.domain) ? "#721c24" : "#aaa",
-                    cursor: domains.includes(draft.domain) ? "pointer" : "default",
-                  }}
-                >
-                  🗑
                 </button>
               </div>
               <div style={styles.hint}>
@@ -681,10 +631,7 @@ export default function LecturerOverview() {
             </div>
 
             <div style={{ marginTop: "25px", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-              <button
-                style={{ ...styles.btn, background: "#f8f9fa", border: "1px solid #ddd" }}
-                onClick={() => setFormMode("overview")}
-              >
+              <button style={{ ...styles.btn, background: "#f8f9fa", border: "1px solid #ddd" }} onClick={() => setFormMode("overview")}>
                 Cancel
               </button>
               <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={save}>
@@ -692,7 +639,6 @@ export default function LecturerOverview() {
               </button>
             </div>
 
-            {/* ✅ Create Domain mini modal */}
             {showDomainModal && (
               <div style={styles.miniOverlay} onMouseDown={closeDomainModal}>
                 <div style={styles.miniModal} onMouseDown={(e) => e.stopPropagation()}>
@@ -717,17 +663,14 @@ export default function LecturerOverview() {
                         if (e.key === "Enter") confirmAddDomain();
                         if (e.key === "Escape") closeDomainModal();
                       }}
-                      placeholder="e.g., Backend, Applied Research"
+                      placeholder="e.g., mediadesign.de"
                     />
                     {domainError ? <div style={styles.dangerText}>{domainError}</div> : null}
-                    <div style={styles.hint}>This adds it to the dropdown list for future use.</div>
+                    <div style={styles.hint}>This saves it in the database and adds it to the dropdown.</div>
                   </div>
 
                   <div style={styles.miniFooter}>
-                    <button
-                      style={{ ...styles.btn, background: "#fff", border: "1px solid #ddd" }}
-                      onClick={closeDomainModal}
-                    >
+                    <button style={{ ...styles.btn, background: "#fff", border: "1px solid #ddd" }} onClick={closeDomainModal}>
                       Cancel
                     </button>
                     <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={confirmAddDomain}>
