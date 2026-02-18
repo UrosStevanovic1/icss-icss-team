@@ -36,9 +36,10 @@ def create_domain(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    require_admin_or_pm(current_user)
-
-    name = _normalize(p.name)
+    # ✅ any authenticated user can create a domain
+    name = (p.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Domain name cannot be empty.")
 
     existing = db.query(models.Domain).filter(models.Domain.name == name).first()
     if existing:
