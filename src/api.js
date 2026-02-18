@@ -55,7 +55,9 @@ const api = {
       body: JSON.stringify({ email, password })
     });
   },
-
+// ---------- DOMAINS ----------
+  getDomains() { return request("/domains/"); },
+  createDomain(payload) { return request("/domains/", { method: "POST", body: JSON.stringify(payload) }); },
   // ---------- PROGRAMS ----------
   getPrograms() { return request("/study-programs/"); },
   createProgram(payload) { return request("/study-programs/", { method: "POST", body: JSON.stringify(payload) }); },

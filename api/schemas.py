@@ -13,6 +13,18 @@ class Token(BaseModel):
     role: str
     lecturer_id: Optional[int] = None
 
+# --- DOMAINS ---
+class DomainBase(BaseModel):
+    name: str
+
+class DomainCreate(DomainBase):
+    pass
+
+class DomainResponse(DomainBase):
+    id: int
+    class Config:
+        from_attributes = True
+
 # --- LECTURERS ---
 class LecturerBase(BaseModel):
     first_name: str
@@ -31,9 +43,11 @@ class ModuleMini(BaseModel):
     class Config:
         from_attributes = True
 
+# ✅ accept domain_id on create
 class LecturerCreate(LecturerBase):
-    pass
+    domain_id: Optional[int] = None
 
+# ✅ accept domain_id on update
 class LecturerUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
@@ -44,6 +58,7 @@ class LecturerUpdate(BaseModel):
     phone: Optional[str] = None
     location: Optional[str] = None
     teaching_load: Optional[str] = None
+    domain_id: Optional[int] = None
 
 class LecturerSelfUpdate(BaseModel):
     personal_email: Optional[str] = None
@@ -51,6 +66,9 @@ class LecturerSelfUpdate(BaseModel):
 
 class LecturerResponse(LecturerBase):
     id: int
+    # ✅ return domain_id + domain label (NOT based on email)
+    domain_id: Optional[int] = None
+    domain: Optional[str] = None
     modules: List[ModuleMini] = []
     class Config:
         from_attributes = True
@@ -243,7 +261,6 @@ class SchedulerConstraintResponse(SchedulerConstraintBase):
     updated_at: datetime
     class Config:
         from_attributes = True
-
 
 class SemesterBase(BaseModel):
     name: str

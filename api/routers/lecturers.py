@@ -14,14 +14,18 @@ def read_lecturers(db: Session = Depends(get_db), current_user: models.User = De
     r = role_of(current_user)
 
     if r == "hosp" or is_admin_or_pm(current_user):
-        # ✅ load assigned modules as well (needs Lecturer.modules relationship in models.py)
-        return db.query(models.Lecturer).options(joinedload(models.Lecturer.modules)).all()
+        # ✅ load assigned modules + domain relation
+        return (
+            db.query(models.Lecturer)
+            .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+            .all()
+        )
 
     if r == "lecturer":
         lec_id = require_lecturer_link(current_user)
         lec = (
             db.query(models.Lecturer)
-            .options(joinedload(models.Lecturer.modules))
+            .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
             .filter(models.Lecturer.id == lec_id)
             .first()
         )
@@ -37,7 +41,7 @@ def get_my_lecturer_profile(db: Session = Depends(get_db), current_user: models.
     lec_id = require_lecturer_link(current_user)
     lec = (
         db.query(models.Lecturer)
-        .options(joinedload(models.Lecturer.modules))
+        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
         .filter(models.Lecturer.id == lec_id)
         .first()
     )
@@ -47,8 +51,11 @@ def get_my_lecturer_profile(db: Session = Depends(get_db), current_user: models.
 
 
 @router.patch("/me", response_model=schemas.LecturerResponse)
-def update_my_lecturer_profile(p: schemas.LecturerSelfUpdate, db: Session = Depends(get_db),
-                               current_user: models.User = Depends(auth.get_current_user)):
+def update_my_lecturer_profile(
+    p: schemas.LecturerSelfUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     if role_of(current_user) != "lecturer":
         raise HTTPException(status_code=403, detail="Not allowed")
     lec_id = require_lecturer_link(current_user)
@@ -66,41 +73,88 @@ def update_my_lecturer_profile(p: schemas.LecturerSelfUpdate, db: Session = Depe
         setattr(lec, k, v)
 
     db.commit()
-    db.refresh(lec)
+    # reload with relations so response contains domain/modules if needed
+    lec = (
+        db.query(models.Lecturer)
+        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+        .filter(models.Lecturer.id == lec_id)
+        .first()
+    )
     return lec
 
 
 @router.post("/", response_model=schemas.LecturerResponse)
-def create_lecturer(p: schemas.LecturerCreate, db: Session = Depends(get_db),
-                    current_user: models.User = Depends(auth.get_current_user)):
+def create_lecturer(
+    p: schemas.LecturerCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     require_admin_or_pm(current_user)
-    row = models.Lecturer(**p.model_dump())
+
+    data = p.model_dump(exclude_unset=True)
+
+    # ✅ validate domain_id if provided (or allow None)
+    domain_id = data.get("domain_id", None)
+    if domain_id is not None:
+        exists = db.query(models.Domain).filter(models.Domain.id == domain_id).first()
+        if not exists:
+            raise HTTPException(status_code=400, detail="Invalid domain_id")
+
+    row = models.Lecturer(**data)
     db.add(row)
     db.commit()
-    db.refresh(row)
+
+    row = (
+        db.query(models.Lecturer)
+        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+        .filter(models.Lecturer.id == row.id)
+        .first()
+    )
     return row
 
 
 @router.put("/{id}", response_model=schemas.LecturerResponse)
-def update_lecturer(id: int, p: schemas.LecturerUpdate, db: Session = Depends(get_db),
-                    current_user: models.User = Depends(auth.get_current_user)):
+def update_lecturer(
+    id: int,
+    p: schemas.LecturerUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     require_admin_or_pm(current_user)
     row = db.query(models.Lecturer).filter(models.Lecturer.id == id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Lecturer not found")
 
     data = p.model_dump(exclude_unset=True)
+
+    # ✅ validate domain_id if provided (or allow None)
+    if "domain_id" in data:
+        domain_id = data["domain_id"]
+        if domain_id is not None:
+            exists = db.query(models.Domain).filter(models.Domain.id == domain_id).first()
+            if not exists:
+                raise HTTPException(status_code=400, detail="Invalid domain_id")
+
     for k, v in data.items():
         setattr(row, k, v)
 
     db.commit()
-    db.refresh(row)
+
+    row = (
+        db.query(models.Lecturer)
+        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+        .filter(models.Lecturer.id == id)
+        .first()
+    )
     return row
 
 
 @router.delete("/{id}")
-def delete_lecturer(id: int, db: Session = Depends(get_db),
-                    current_user: models.User = Depends(auth.get_current_user)):
+def delete_lecturer(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     require_admin_or_pm(current_user)
     row = db.query(models.Lecturer).filter(models.Lecturer.id == id).first()
     if row:
@@ -144,7 +198,7 @@ def set_lecturer_modules(
 
     lec = (
         db.query(models.Lecturer)
-        .options(joinedload(models.Lecturer.modules))
+        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
         .filter(models.Lecturer.id == id)
         .first()
     )
@@ -162,5 +216,11 @@ def set_lecturer_modules(
         lec.modules = mods
 
     db.commit()
-    db.refresh(lec)
+
+    lec = (
+        db.query(models.Lecturer)
+        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+        .filter(models.Lecturer.id == id)
+        .first()
+    )
     return lec

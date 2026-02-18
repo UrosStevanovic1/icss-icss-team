@@ -53,11 +53,6 @@ const styles = {
     padding: "10px 15px",
     verticalAlign: "middle",
   },
-  link: {
-    color: "#007bff",
-    textDecoration: "none",
-    cursor: "pointer",
-  },
   btn: {
     padding: "6px 12px",
     borderRadius: "4px",
@@ -69,7 +64,6 @@ const styles = {
   primaryBtn: { background: "#007bff", color: "white" },
   editBtn: { background: "#6c757d", color: "white" },
   deleteBtn: { background: "#dc3545", color: "white" },
-  assignBtn: { background: "#17a2b8", color: "white" },
 
   // Icon Button for Add/Delete
   iconBtn: {
@@ -132,62 +126,54 @@ const styles = {
     background: "white",
   },
 
-  // Chips for modules
-  chipWrap: {
+  hint: { fontSize: "0.85rem", color: "#6b7280", marginTop: "8px" },
+
+  // ✅ Nice small modal (for creating domain)
+  miniOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0,0,0,0.55)",
     display: "flex",
-    flexWrap: "wrap",
-    gap: "8px",
-    padding: "10px",
-    border: "1px solid #e5e7eb",
-    borderRadius: "6px",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000,
+  },
+  miniModal: {
+    background: "white",
+    width: "420px",
+    maxWidth: "92vw",
+    borderRadius: "10px",
+    boxShadow: "0 10px 25px rgba(0,0,0,0.35)",
+    overflow: "hidden",
+  },
+  miniHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "14px 16px",
+    borderBottom: "1px solid #eee",
+  },
+  miniTitle: { margin: 0, fontSize: "1.05rem" },
+  miniBody: { padding: "14px 16px" },
+  miniFooter: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "10px",
+    padding: "14px 16px",
+    borderTop: "1px solid #eee",
     background: "#fafafa",
   },
-  chip: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    border: "1px solid #d1d5db",
-    background: "white",
-    fontSize: "0.85rem",
-    maxWidth: "100%",
-  },
-  chipCode: { fontWeight: 700, color: "#0f172a" },
-  chipName: {
-    color: "#475569",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    maxWidth: "320px",
-  },
-  chipX: {
+  closeX: {
     border: "none",
     background: "transparent",
+    fontSize: "1.4rem",
     cursor: "pointer",
-    color: "#dc3545",
-    fontWeight: 800,
     lineHeight: 1,
   },
-
-  // Inline table display chips
-  inlineChips: { display: "flex", flexWrap: "wrap", gap: "6px" },
-  inlineChip: {
-    display: "inline-block",
-    padding: "3px 8px",
-    borderRadius: "999px",
-    border: "1px solid #d1d5db",
-    background: "#f8fafc",
-    fontSize: "0.78rem",
-    color: "#334155",
-    maxWidth: "280px",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-
-  hint: { fontSize: "0.85rem", color: "#6b7280", marginTop: "8px" },
-  divider: { border: 0, borderTop: "1px solid #eee", margin: "18px 0" },
+  dangerText: { color: "#dc3545", fontSize: "0.85rem", marginTop: "8px" },
 };
 
 const TITLES = ["Dr.", "Prof."];
@@ -195,44 +181,39 @@ const STANDARD_LOCATIONS = ["Berlin", "Düsseldorf", "Munich"];
 
 export default function LecturerOverview() {
   const [lecturers, setLecturers] = useState([]);
-  const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [formMode, setFormMode] = useState("overview"); // overview | add | edit | assign
+  const [formMode, setFormMode] = useState("overview"); // overview | add | edit
   const [editingId, setEditingId] = useState(null);
 
   // Store custom locations found in DB or added by user
   const [customLocations, setCustomLocations] = useState([]);
 
-  // Assign modal state
-  const [assigningLecturer, setAssigningLecturer] = useState(null);
-  const [assignQuery, setAssignQuery] = useState("");
-  const [selectedModuleCodes, setSelectedModuleCodes] = useState([]);
-  const [savingAssign, setSavingAssign] = useState(false);
+  // ✅ Domains (label list)
+  const [domains, setDomains] = useState([]);
+
+  // ✅ Nice create-domain modal state
+  const [showDomainModal, setShowDomainModal] = useState(false);
+  const [newDomain, setNewDomain] = useState("");
+  const [domainError, setDomainError] = useState("");
 
   const [draft, setDraft] = useState({
     firstName: "",
     lastName: "",
-    title: "Dr.", // Default to first option
+    title: "Dr.",
     employmentType: "Full time",
     personalEmail: "",
     mdhEmail: "",
     phone: "",
     location: "",
     teachingLoad: "",
+    domain: "",
   });
 
   async function loadAll() {
     setLoading(true);
     try {
-      const [lecData, modData] = await Promise.all([api.getLecturers(), api.getModules()]);
-
-      // modules list for dropdown
-      const modList = (Array.isArray(modData) ? modData : []).map((m) => ({
-        module_code: m.module_code,
-        name: m.name,
-      }));
-      setModules(modList);
+      const lecData = await api.getLecturers();
 
       const mapped = (Array.isArray(lecData) ? lecData : []).map((x) => ({
         id: x.id,
@@ -245,10 +226,8 @@ export default function LecturerOverview() {
         phone: x.phone || "",
         location: x.location || "",
         teachingLoad: x.teaching_load || "",
+        domain: x.domain || "",
         fullName: `${x.first_name} ${x.last_name || ""}`.trim(),
-
-        // ✅ expects backend to return: modules: [{module_code, name}, ...]
-        modules: Array.isArray(x.modules) ? x.modules : [],
       }));
 
       setLecturers(mapped);
@@ -259,10 +238,17 @@ export default function LecturerOverview() {
         .filter((loc) => loc && loc.trim() !== "" && !STANDARD_LOCATIONS.includes(loc));
 
       setCustomLocations([...new Set(existingCustom)].sort());
+
+      // ✅ Extract existing domains from DB (labels)
+      const existingDomains = mapped
+        .map((l) => (l.domain || "").trim())
+        .filter((d) => d !== "");
+
+      setDomains([...new Set(existingDomains)].sort());
     } catch (e) {
       alert("Error loading data: " + e.message);
       setLecturers([]);
-      setModules([]);
+      setDomains([]);
     } finally {
       setLoading(false);
     }
@@ -284,6 +270,7 @@ export default function LecturerOverview() {
       phone: "",
       location: "",
       teachingLoad: "",
+      domain: "",
     });
     setFormMode("add");
   }
@@ -300,34 +287,9 @@ export default function LecturerOverview() {
       phone: row.phone || "",
       location: row.location || "",
       teachingLoad: row.teachingLoad || "",
+      domain: row.domain || "",
     });
     setFormMode("edit");
-  }
-
-  // ✅ Open assign modules modal
-  async function openAssign(row) {
-    try {
-      setAssigningLecturer(row);
-      setAssignQuery("");
-      setSelectedModuleCodes([]);
-
-      // Prefer live list from endpoint (so it stays correct even if list response changes)
-      const assigned = await api.getLecturerModules(row.id); // returns [{module_code, name}, ...]
-      const codes = (Array.isArray(assigned) ? assigned : []).map((m) => m.module_code);
-      setSelectedModuleCodes(codes);
-
-      setFormMode("assign");
-    } catch (e) {
-      alert("Error loading lecturer modules: " + e.message);
-    }
-  }
-
-  function closeAssign() {
-    setFormMode("overview");
-    setAssigningLecturer(null);
-    setAssignQuery("");
-    setSelectedModuleCodes([]);
-    setSavingAssign(false);
   }
 
   function addNewLocation() {
@@ -350,6 +312,51 @@ export default function LecturerOverview() {
     if (window.confirm(`Remove "${draft.location}" from the list?`)) {
       setCustomLocations(customLocations.filter((t) => t !== draft.location));
       setDraft({ ...draft, location: "" });
+    }
+  }
+
+  // ✅ Open nice domain modal (instead of prompt)
+  function openDomainModal() {
+    setDomainError("");
+    setNewDomain("");
+    setShowDomainModal(true);
+  }
+
+  function closeDomainModal() {
+    setShowDomainModal(false);
+    setNewDomain("");
+    setDomainError("");
+  }
+
+  // ✅ Confirm add domain
+  function confirmAddDomain() {
+    const formatted = (newDomain || "").trim();
+
+    if (!formatted) {
+      setDomainError("Domain name cannot be empty.");
+      return;
+    }
+
+    const exists = domains.some((d) => d.toLowerCase() === formatted.toLowerCase());
+    if (exists) {
+      setDomainError("This domain already exists.");
+      return;
+    }
+
+    const updated = [...domains, formatted].sort((a, b) => a.localeCompare(b));
+    setDomains(updated);
+    setDraft({ ...draft, domain: formatted });
+    closeDomainModal();
+  }
+
+  // ✅ Optional: delete domain label from list (does NOT delete from DB, only from dropdown list)
+  function deleteDomainFromList() {
+    if (!draft.domain) return;
+    if (!domains.includes(draft.domain)) return;
+
+    if (window.confirm(`Remove "${draft.domain}" from the domain dropdown list? (This won't edit DB rows)`)) {
+      setDomains(domains.filter((d) => d !== draft.domain));
+      setDraft({ ...draft, domain: "" });
     }
   }
 
@@ -378,6 +385,7 @@ export default function LecturerOverview() {
       phone: draft.phone.trim() || null,
       location: draft.location.trim() || null,
       teaching_load: draft.teachingLoad.trim() || null,
+      domain: (draft.domain || "").trim() || null,
     };
 
     try {
@@ -394,20 +402,6 @@ export default function LecturerOverview() {
     }
   }
 
-  // ✅ Save modules assignment
-  async function saveAssignedModules() {
-    if (!assigningLecturer) return;
-    setSavingAssign(true);
-    try {
-      await api.setLecturerModules(assigningLecturer.id, selectedModuleCodes);
-      await loadAll();
-      closeAssign();
-    } catch (e) {
-      alert("Error saving modules: " + e.message);
-      setSavingAssign(false);
-    }
-  }
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return lecturers;
@@ -415,43 +409,10 @@ export default function LecturerOverview() {
       (l) =>
         l.fullName.toLowerCase().includes(q) ||
         (l.location || "").toLowerCase().includes(q) ||
-        (l.title || "").toLowerCase().includes(q) ||
-        (Array.isArray(l.modules) ? l.modules : [])
-          .map((m) => `${m.module_code} ${m.name}`.toLowerCase())
-          .join(" ")
-          .includes(q)
+        (l.domain || "").toLowerCase().includes(q) ||
+        (l.title || "").toLowerCase().includes(q)
     );
   }, [lecturers, query]);
-
-  const modulesByCode = useMemo(() => {
-    const map = new Map();
-    for (const m of modules) map.set(m.module_code, m);
-    return map;
-  }, [modules]);
-
-  const assignFilteredModules = useMemo(() => {
-    const q = assignQuery.trim().toLowerCase();
-    if (!q) return modules;
-    return modules.filter(
-      (m) => m.module_code.toLowerCase().includes(q) || (m.name || "").toLowerCase().includes(q)
-    );
-  }, [modules, assignQuery]);
-
-  function moduleLabel(m) {
-    if (!m) return "";
-    return `${m.module_code} — ${m.name}`;
-  }
-
-  function toggleModule(code) {
-    setSelectedModuleCodes((prev) => {
-      if (prev.includes(code)) return prev.filter((c) => c !== code);
-      return [...prev, code];
-    });
-  }
-
-  function removeSelected(code) {
-    setSelectedModuleCodes((prev) => prev.filter((c) => c !== code));
-  }
 
   return (
     <div style={styles.container}>
@@ -464,7 +425,7 @@ export default function LecturerOverview() {
 
       <input
         style={styles.searchBar}
-        placeholder="Search by name, location, title, or module..."
+        placeholder="Search by name, location, title, or domain..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
@@ -479,9 +440,9 @@ export default function LecturerOverview() {
               <th style={styles.th}>Full Name</th>
               <th style={styles.th}>Type</th>
               <th style={styles.th}>Location</th>
+              <th style={styles.th}>Domain</th>
               <th style={styles.th}>MDH Email</th>
               <th style={styles.th}>Teaching Load</th>
-              <th style={styles.th}>Modules</th>
               <th style={{ ...styles.th, textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
@@ -494,44 +455,11 @@ export default function LecturerOverview() {
                 </td>
                 <td style={styles.td}>{l.employmentType}</td>
                 <td style={styles.td}>{l.location || "-"}</td>
-
-                {/* ✅ Clickable MDH Email */}
-                <td style={styles.td}>
-                  {l.mdhEmail ? (
-                    <a href={`mailto:${l.mdhEmail}`} style={styles.link} title="Send email">
-                      {l.mdhEmail}
-                    </a>
-                  ) : (
-                    "-"
-                  )}
-                </td>
-
+                <td style={styles.td}>{l.domain || "-"}</td>
+                <td style={styles.td}>{l.mdhEmail || "-"}</td>
                 <td style={styles.td}>{l.teachingLoad || "-"}</td>
 
-                {/* ✅ Modules column */}
-                <td style={styles.td}>
-                  {Array.isArray(l.modules) && l.modules.length > 0 ? (
-                    <div style={styles.inlineChips}>
-                      {l.modules.slice(0, 3).map((m) => (
-                        <span key={m.module_code} style={styles.inlineChip} title={moduleLabel(m)}>
-                          {m.module_code}
-                        </span>
-                      ))}
-                      {l.modules.length > 3 && (
-                        <span style={styles.inlineChip} title={l.modules.map((m) => moduleLabel(m)).join("\n")}>
-                          +{l.modules.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span style={{ color: "#94a3b8", fontStyle: "italic" }}>—</span>
-                  )}
-                </td>
-
                 <td style={{ ...styles.td, textAlign: "right", whiteSpace: "nowrap" }}>
-                  <button style={{ ...styles.btn, ...styles.assignBtn }} onClick={() => openAssign(l)}>
-                    Assign Modules
-                  </button>
                   <button style={{ ...styles.btn, ...styles.editBtn }} onClick={() => openEdit(l)}>
                     Edit
                   </button>
@@ -562,7 +490,11 @@ export default function LecturerOverview() {
             {/* Title Selector */}
             <div style={styles.formGroup}>
               <label style={styles.label}>Title</label>
-              <select style={styles.select} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })}>
+              <select
+                style={styles.select}
+                value={draft.title}
+                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+              >
                 {TITLES.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -592,8 +524,8 @@ export default function LecturerOverview() {
               </div>
             </div>
 
+            {/* Location + Employment Type */}
             <div style={{ display: "flex", gap: "15px", marginBottom: "15px" }}>
-              {/* Location Selector (Standard + Custom) */}
               <div style={{ flex: 1 }}>
                 <label style={styles.label}>Location</label>
                 <div style={{ display: "flex", gap: "5px" }}>
@@ -621,7 +553,12 @@ export default function LecturerOverview() {
                     )}
                   </select>
 
-                  <button type="button" title="Add new location" onClick={addNewLocation} style={{ ...styles.iconBtn, background: "#e2e6ea" }}>
+                  <button
+                    type="button"
+                    title="Add new location"
+                    onClick={addNewLocation}
+                    style={{ ...styles.iconBtn, background: "#e2e6ea" }}
+                  >
                     +
                   </button>
 
@@ -653,6 +590,52 @@ export default function LecturerOverview() {
                   <option value="Part time">Part time</option>
                   <option value="Freelancer">Freelancer</option>
                 </select>
+              </div>
+            </div>
+
+            {/* ✅ Domain selector + nice create modal */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Domain</label>
+              <div style={{ display: "flex", gap: "5px" }}>
+                <select
+                  style={{ ...styles.select, flex: 1 }}
+                  value={draft.domain}
+                  onChange={(e) => setDraft({ ...draft, domain: e.target.value })}
+                >
+                  <option value="">-- Select Domain --</option>
+                  {domains.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  title="Add new domain"
+                  onClick={openDomainModal}
+                  style={{ ...styles.iconBtn, background: "#e2e6ea" }}
+                >
+                  +
+                </button>
+
+                <button
+                  type="button"
+                  title="Remove domain from dropdown list"
+                  onClick={deleteDomainFromList}
+                  disabled={!domains.includes(draft.domain)}
+                  style={{
+                    ...styles.iconBtn,
+                    background: domains.includes(draft.domain) ? "#f8d7da" : "#eee",
+                    color: domains.includes(draft.domain) ? "#721c24" : "#aaa",
+                    cursor: domains.includes(draft.domain) ? "pointer" : "default",
+                  }}
+                >
+                  🗑
+                </button>
+              </div>
+              <div style={styles.hint}>
+                Choose a domain from the list, or click <strong>+</strong> to create a new one.
               </div>
             </div>
 
@@ -698,116 +681,62 @@ export default function LecturerOverview() {
             </div>
 
             <div style={{ marginTop: "25px", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-              <button style={{ ...styles.btn, background: "#f8f9fa", border: "1px solid #ddd" }} onClick={() => setFormMode("overview")}>
+              <button
+                style={{ ...styles.btn, background: "#f8f9fa", border: "1px solid #ddd" }}
+                onClick={() => setFormMode("overview")}
+              >
                 Cancel
               </button>
               <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={save}>
                 {formMode === "add" ? "Create" : "Save Changes"}
               </button>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* --- MODAL: Assign Modules --- */}
-      {formMode === "assign" && assigningLecturer && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-              <div>
-                <h3 style={{ margin: 0 }}>Assign Modules</h3>
-                <div style={styles.hint}>
-                  Lecturer: <strong>{assigningLecturer.fullName}</strong>
+            {/* ✅ Create Domain mini modal */}
+            {showDomainModal && (
+              <div style={styles.miniOverlay} onMouseDown={closeDomainModal}>
+                <div style={styles.miniModal} onMouseDown={(e) => e.stopPropagation()}>
+                  <div style={styles.miniHeader}>
+                    <h4 style={styles.miniTitle}>Create new domain</h4>
+                    <button style={styles.closeX} onClick={closeDomainModal} aria-label="Close">
+                      ×
+                    </button>
+                  </div>
+
+                  <div style={styles.miniBody}>
+                    <label style={styles.label}>Domain name</label>
+                    <input
+                      autoFocus
+                      style={styles.input}
+                      value={newDomain}
+                      onChange={(e) => {
+                        setNewDomain(e.target.value);
+                        if (domainError) setDomainError("");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") confirmAddDomain();
+                        if (e.key === "Escape") closeDomainModal();
+                      }}
+                      placeholder="e.g., Backend, Applied Research"
+                    />
+                    {domainError ? <div style={styles.dangerText}>{domainError}</div> : null}
+                    <div style={styles.hint}>This adds it to the dropdown list for future use.</div>
+                  </div>
+
+                  <div style={styles.miniFooter}>
+                    <button
+                      style={{ ...styles.btn, background: "#fff", border: "1px solid #ddd" }}
+                      onClick={closeDomainModal}
+                    >
+                      Cancel
+                    </button>
+                    <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={confirmAddDomain}>
+                      Save
+                    </button>
+                  </div>
                 </div>
               </div>
-              <button onClick={closeAssign} style={{ border: "none", background: "transparent", fontSize: "1.5rem", cursor: "pointer" }}>
-                ×
-              </button>
-            </div>
-
-            <hr style={styles.divider} />
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Search modules</label>
-              <input
-                style={styles.input}
-                value={assignQuery}
-                onChange={(e) => setAssignQuery(e.target.value)}
-                placeholder="Type module code or name..."
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-              <div style={{ flex: 1 }}>
-                <label style={styles.label}>Available modules</label>
-                <div style={{ border: "1px solid #ddd", borderRadius: "6px", maxHeight: "280px", overflowY: "auto", background: "white" }}>
-                  {assignFilteredModules.map((m) => {
-                    const checked = selectedModuleCodes.includes(m.module_code);
-                    return (
-                      <label
-                        key={m.module_code}
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          padding: "10px",
-                          borderBottom: "1px solid #f1f5f9",
-                          cursor: "pointer",
-                          alignItems: "center",
-                        }}
-                      >
-                        <input type="checkbox" checked={checked} onChange={() => toggleModule(m.module_code)} />
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          <span style={{ fontWeight: 700 }}>{m.module_code}</span>
-                          <span style={{ fontSize: "0.85rem", color: "#64748b" }}>{m.name}</span>
-                        </div>
-                      </label>
-                    );
-                  })}
-                  {assignFilteredModules.length === 0 && (
-                    <div style={{ padding: "12px", color: "#94a3b8", fontStyle: "italic" }}>No modules found.</div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <label style={styles.label}>Assigned modules</label>
-                <div style={styles.chipWrap}>
-                  {selectedModuleCodes.length === 0 && (
-                    <div style={{ color: "#94a3b8", fontStyle: "italic" }}>No modules assigned.</div>
-                  )}
-                  {selectedModuleCodes.map((code) => {
-                    const m = modulesByCode.get(code);
-                    return (
-                      <div key={code} style={styles.chip} title={m ? moduleLabel(m) : code}>
-                        <span style={styles.chipCode}>{code}</span>
-                        {m?.name ? <span style={styles.chipName}>{m.name}</span> : null}
-                        <button type="button" style={styles.chipX} onClick={() => removeSelected(code)} aria-label="Remove">
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={styles.hint}>Tip: you can assign many modules to the same lecturer.</div>
-              </div>
-            </div>
-
-            <div style={{ marginTop: "18px", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-              <button
-                style={{ ...styles.btn, background: "#f8f9fa", border: "1px solid #ddd" }}
-                onClick={closeAssign}
-                disabled={savingAssign}
-              >
-                Cancel
-              </button>
-              <button
-                style={{ ...styles.btn, ...styles.assignBtn, opacity: savingAssign ? 0.8 : 1 }}
-                onClick={saveAssignedModules}
-                disabled={savingAssign}
-              >
-                {savingAssign ? "Saving..." : "Save Modules"}
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}

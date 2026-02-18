@@ -31,6 +31,13 @@ class User(Base):
     lecturer_profile = relationship("Lecturer")
 
 
+# ✅ DOMAINS TABLE (matches your schema)
+class Domain(Base):
+    __tablename__ = "domains"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(120), unique=True, nullable=False)
+
+
 class Lecturer(Base):
     __tablename__ = "lecturers"
     id = Column("ID", Integer, primary_key=True, index=True)
@@ -43,7 +50,17 @@ class Lecturer(Base):
     phone = Column(String(50), nullable=True)
     location = Column(String(200), nullable=True)
     teaching_load = Column(String(100), nullable=True)
+
+    # ✅ NEW: FK to domains (NO email logic)
+    domain_id = Column(Integer, ForeignKey("domains.id"), nullable=True)
+    domain_rel = relationship("Domain")
+
     modules = relationship("Module", secondary=lecturer_modules, back_populates="lecturers")
+
+    # optional convenience (used by schemas response)
+    @property
+    def domain(self):
+        return self.domain_rel.name if self.domain_rel else None
 
 
 class StudyProgram(Base):
