@@ -9,15 +9,65 @@ from ..permissions import role_of, is_admin_or_pm, require_admin_or_pm, require_
 router = APIRouter(prefix="/lecturers", tags=["lecturers"])
 
 
+def _load_lecturer_with_relations(db: Session, lecturer_id: int):
+    # keep your old domain_rel joinedload for backward compatibility,
+    # but also load the new many-to-many domains
+    return (
+        db.query(models.Lecturer)
+        .options(
+            joinedload(models.Lecturer.modules),
+            joinedload(models.Lecturer.domain_rel),
+            joinedload(models.Lecturer.domains),
+        )
+        .filter(models.Lecturer.id == lecturer_id)
+        .first()
+    )
+
+
+def _validate_and_fetch_domains(db: Session, domain_ids: List[int]) -> List[models.Domain]:
+    if not domain_ids:
+        return []
+
+    # remove duplicates but keep order
+    seen = set()
+    unique_ids = []
+    for d in domain_ids:
+        if d not in seen:
+            seen.add(d)
+            unique_ids.append(d)
+
+    found = db.query(models.Domain).filter(models.Domain.id.in_(unique_ids)).all()
+    found_ids = {d.id for d in found}
+    missing = [d for d in unique_ids if d not in found_ids]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Invalid domain_id(s): {missing}")
+    return found
+
+
+def _sync_single_domain_fk(row: models.Lecturer):
+    """
+    Optional: keep legacy domain_id/domain_rel in sync so older frontend
+    (or other parts of the backend) still work.
+    Uses the FIRST domain in row.domains (if any).
+    """
+    if getattr(row, "domains", None) and len(row.domains) > 0:
+        row.domain_id = row.domains[0].id
+    else:
+        row.domain_id = None
+
+
 @router.get("/", response_model=List[schemas.LecturerResponse])
 def read_lecturers(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     r = role_of(current_user)
 
     if r == "hosp" or is_admin_or_pm(current_user):
-        # ✅ load assigned modules + domain relation
         return (
             db.query(models.Lecturer)
-            .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+            .options(
+                joinedload(models.Lecturer.modules),
+                joinedload(models.Lecturer.domain_rel),
+                joinedload(models.Lecturer.domains),
+            )
             .all()
         )
 
@@ -25,7 +75,11 @@ def read_lecturers(db: Session = Depends(get_db), current_user: models.User = De
         lec_id = require_lecturer_link(current_user)
         lec = (
             db.query(models.Lecturer)
-            .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+            .options(
+                joinedload(models.Lecturer.modules),
+                joinedload(models.Lecturer.domain_rel),
+                joinedload(models.Lecturer.domains),
+            )
             .filter(models.Lecturer.id == lec_id)
             .first()
         )
@@ -41,7 +95,11 @@ def get_my_lecturer_profile(db: Session = Depends(get_db), current_user: models.
     lec_id = require_lecturer_link(current_user)
     lec = (
         db.query(models.Lecturer)
-        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+        .options(
+            joinedload(models.Lecturer.modules),
+            joinedload(models.Lecturer.domain_rel),
+            joinedload(models.Lecturer.domains),
+        )
         .filter(models.Lecturer.id == lec_id)
         .first()
     )
@@ -73,10 +131,14 @@ def update_my_lecturer_profile(
         setattr(lec, k, v)
 
     db.commit()
-    # reload with relations so response contains domain/modules if needed
+
     lec = (
         db.query(models.Lecturer)
-        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+        .options(
+            joinedload(models.Lecturer.modules),
+            joinedload(models.Lecturer.domain_rel),
+            joinedload(models.Lecturer.domains),
+        )
         .filter(models.Lecturer.id == lec_id)
         .first()
     )
@@ -93,23 +155,21 @@ def create_lecturer(
 
     data = p.model_dump(exclude_unset=True)
 
-    # ✅ validate domain_id if provided (or allow None)
-    domain_id = data.get("domain_id", None)
-    if domain_id is not None:
-        exists = db.query(models.Domain).filter(models.Domain.id == domain_id).first()
-        if not exists:
-            raise HTTPException(status_code=400, detail="Invalid domain_id")
+    # ✅ NEW: pop domain_ids from payload so Lecturer(**data) doesn't crash
+    domain_ids = data.pop("domain_ids", []) or []
 
     row = models.Lecturer(**data)
+
+    # ✅ NEW: set many-to-many domains
+    row.domains = _validate_and_fetch_domains(db, domain_ids)
+
+    # ✅ OPTIONAL: keep old single FK synced
+    _sync_single_domain_fk(row)
+
     db.add(row)
     db.commit()
 
-    row = (
-        db.query(models.Lecturer)
-        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
-        .filter(models.Lecturer.id == row.id)
-        .first()
-    )
+    row = _load_lecturer_with_relations(db, row.id)
     return row
 
 
@@ -127,25 +187,23 @@ def update_lecturer(
 
     data = p.model_dump(exclude_unset=True)
 
-    # ✅ validate domain_id if provided (or allow None)
-    if "domain_id" in data:
-        domain_id = data["domain_id"]
-        if domain_id is not None:
-            exists = db.query(models.Domain).filter(models.Domain.id == domain_id).first()
-            if not exists:
-                raise HTTPException(status_code=400, detail="Invalid domain_id")
+    # ✅ NEW: handle domains if provided
+    # None => not provided (leave unchanged), [] => clear all
+    if "domain_ids" in data:
+        domain_ids = data.pop("domain_ids")
+        if domain_ids is None:
+            pass
+        else:
+            row.domains = _validate_and_fetch_domains(db, domain_ids)
+            _sync_single_domain_fk(row)
 
+    # keep old behavior for all other fields
     for k, v in data.items():
         setattr(row, k, v)
 
     db.commit()
 
-    row = (
-        db.query(models.Lecturer)
-        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
-        .filter(models.Lecturer.id == id)
-        .first()
-    )
+    row = _load_lecturer_with_relations(db, id)
     return row
 
 
@@ -163,7 +221,6 @@ def delete_lecturer(
     return {"ok": True}
 
 
-# ✅ NEW: list modules assigned to a lecturer
 @router.get("/{id}/modules", response_model=List[schemas.ModuleMini])
 def get_lecturer_modules(
     id: int,
@@ -186,7 +243,6 @@ def get_lecturer_modules(
     return lec.modules
 
 
-# ✅ NEW: replace lecturer's module list (set exactly)
 @router.put("/{id}/modules", response_model=schemas.LecturerResponse)
 def set_lecturer_modules(
     id: int,
@@ -198,7 +254,11 @@ def set_lecturer_modules(
 
     lec = (
         db.query(models.Lecturer)
-        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+        .options(
+            joinedload(models.Lecturer.modules),
+            joinedload(models.Lecturer.domain_rel),
+            joinedload(models.Lecturer.domains),
+        )
         .filter(models.Lecturer.id == id)
         .first()
     )
@@ -219,7 +279,11 @@ def set_lecturer_modules(
 
     lec = (
         db.query(models.Lecturer)
-        .options(joinedload(models.Lecturer.modules), joinedload(models.Lecturer.domain_rel))
+        .options(
+            joinedload(models.Lecturer.modules),
+            joinedload(models.Lecturer.domain_rel),
+            joinedload(models.Lecturer.domains),
+        )
         .filter(models.Lecturer.id == id)
         .first()
     )
