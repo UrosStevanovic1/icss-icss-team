@@ -43,11 +43,11 @@ class ModuleMini(BaseModel):
     class Config:
         from_attributes = True
 
-# ✅ accept domain_id on create
+# ✅ NEW: accept domain_ids on create (multi)
 class LecturerCreate(LecturerBase):
-    domain_id: Optional[int] = None
+    domain_ids: Optional[List[int]] = []
 
-# ✅ accept domain_id on update
+# ✅ NEW: accept domain_ids on update (multi)
 class LecturerUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
@@ -58,7 +58,7 @@ class LecturerUpdate(BaseModel):
     phone: Optional[str] = None
     location: Optional[str] = None
     teaching_load: Optional[str] = None
-    domain_id: Optional[int] = None
+    domain_ids: Optional[List[int]] = None  # None = not provided, [] = clear all
 
 class LecturerSelfUpdate(BaseModel):
     personal_email: Optional[str] = None
@@ -66,12 +66,21 @@ class LecturerSelfUpdate(BaseModel):
 
 class LecturerResponse(LecturerBase):
     id: int
-    # ✅ return domain_id + domain label (NOT based on email)
+
+    # ✅ NEW: return domains + ids for tags UI
+    domain_ids: List[int] = []
+    domains: List[DomainResponse] = []
+
+    # ✅ OPTIONAL backward compatibility (you can keep these for now)
     domain_id: Optional[int] = None
     domain: Optional[str] = None
+
     modules: List[ModuleMini] = []
     class Config:
         from_attributes = True
+
+
+
 
 class LecturerModulesUpdate(BaseModel):
     module_codes: List[str] = []
