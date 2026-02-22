@@ -20,6 +20,9 @@ export default function OfferedModules() {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleteInput, setDeleteInput] = useState("");
 
+  // ✅ small UI state: which row is updating lecturer
+  const [updatingOfferId, setUpdatingOfferId] = useState(null);
+
   // 1. CARGAR SEMESTRES DE SHAYAN AL INICIO
   useEffect(() => {
     async function fetchSemesters() {
@@ -29,9 +32,11 @@ export default function OfferedModules() {
 
         // Si hay semestres, seleccionar el primero automáticamente para que no salga vacío
         if (s && s.length > 0) {
-            setSemester(s[0].name);
+          setSemester(s[0].name);
         }
-      } catch (e) { console.error("Error fetching semesters", e); }
+      } catch (e) {
+        console.error("Error fetching semesters", e);
+      }
     }
     fetchSemesters();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -40,7 +45,7 @@ export default function OfferedModules() {
   // 2. Cargar Ofertas cuando cambia el semestre
   useEffect(() => {
     if (semester) {
-        loadTableData();
+      loadTableData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [semester]);
@@ -55,7 +60,9 @@ export default function OfferedModules() {
     try {
       const data = await api.getOfferedModules(semester);
       setOffers(data);
-    } catch (e) { console.error("Error loading offers:", e); }
+    } catch (e) {
+      console.error("Error loading offers:", e);
+    }
   }
 
   async function loadDropdownData() {
@@ -66,11 +73,13 @@ export default function OfferedModules() {
       setPrograms(p);
       setAllModules(m);
       setLecturers(l);
-    } catch (e) { console.error("Error loading dropdowns:", e); }
+    } catch (e) {
+      console.error("Error loading dropdowns:", e);
+    }
   }
 
   const filteredModules = selectedProgramId
-    ? allModules.filter(m => m.program_id === parseInt(selectedProgramId))
+    ? allModules.filter((m) => m.program_id === parseInt(selectedProgramId))
     : allModules;
 
   // --- LOGICA DE CREAR ---
@@ -83,7 +92,7 @@ export default function OfferedModules() {
         module_code: newOffer.module_code,
         lecturer_id: newOffer.lecturer_id || null,
         semester: semester, // Enviamos el nombre real del semestre
-        status: "Confirmed"
+        status: "Confirmed",
       });
       setShowModal(false);
       loadTableData();
@@ -108,52 +117,133 @@ export default function OfferedModules() {
       setShowDeleteModal(false);
       setItemToDelete(null);
       loadTableData();
-    } catch (e) { alert("Error deleting"); }
+    } catch (e) {
+      alert("Error deleting");
+    }
+  }
+
+  // ✅ Helper: best-effort get current lecturer_id for an offer
+  function getCurrentLecturerId(offer) {
+    if (offer.lecturer_id != null) return String(offer.lecturer_id);
+
+    // fallback: try match by lecturer_name (if backend doesn’t send lecturer_id yet)
+    const name = (offer.lecturer_name || "").trim();
+    if (!name || name.toLowerCase() === "unassigned") return "";
+
+    const found = lecturers.find((l) => {
+      const full = `${l.first_name || ""} ${l.last_name || ""}`.trim();
+      return full === name;
+    });
+    return found ? String(found.id) : "";
+  }
+
+  // ✅ Jira-like assign lecturer from table
+  async function handleAssignLecturer(offer, lecturerIdStr) {
+    const nextLecturerId = lecturerIdStr ? Number(lecturerIdStr) : null;
+
+    const prevOffers = offers;
+    setUpdatingOfferId(offer.id);
+
+    // optimistic UI
+    setOffers((cur) =>
+      cur.map((o) =>
+        o.id === offer.id
+          ? {
+              ...o,
+              lecturer_id: nextLecturerId,
+              lecturer_name:
+                nextLecturerId == null
+                  ? "Unassigned"
+                  : (() => {
+                      const l = lecturers.find((x) => x.id === nextLecturerId);
+                      return l ? `${l.first_name} ${l.last_name || ""}`.trim() : o.lecturer_name;
+                    })(),
+            }
+          : o
+      )
+    );
+
+    try {
+      // Try common API function names without breaking your existing api.js
+      if (typeof api.updateOfferedModule === "function") {
+        await api.updateOfferedModule(offer.id, { lecturer_id: nextLecturerId });
+      } else if (typeof api.updateOfferedModuleLecturer === "function") {
+        await api.updateOfferedModuleLecturer(offer.id, nextLecturerId);
+      } else if (typeof api.assignLecturerToOfferedModule === "function") {
+        await api.assignLecturerToOfferedModule(offer.id, nextLecturerId);
+      } else {
+        throw new Error("Missing API method to update offered module lecturer_id");
+      }
+
+      // reload to ensure server truth
+      await loadTableData();
+    } catch (e) {
+      console.error(e);
+      setOffers(prevOffers);
+      alert(e.message || "Error assigning lecturer");
+    } finally {
+      setUpdatingOfferId(null);
+    }
   }
 
   return (
     <div style={{ padding: "20px", fontFamily: "Segoe UI, sans-serif" }}>
       {/* HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", borderBottom:"1px solid #ccc", paddingBottom:"15px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: "20px",
+          borderBottom: "1px solid #ccc",
+          paddingBottom: "15px",
+        }}
+      >
         <div>
-            <h2 style={{margin:0}}>Semester Planning</h2>
-            <div style={{marginTop: "5px", color:"#666"}}>
-                <label style={{marginRight: "10px"}}>Manage offers for:</label>
+          <h2 style={{ margin: 0 }}>Semester Planning</h2>
+          <div style={{ marginTop: "5px", color: "#666" }}>
+            <label style={{ marginRight: "10px" }}>Manage offers for:</label>
 
-                {/* SELECTOR CONECTADO A LA BD REAL */}
-                <select
-                    style={{ padding:"5px", fontWeight:"bold", minWidth: "150px" }}
-                    value={semester}
-                    onChange={e => setSemester(e.target.value)}
-                >
-                    {availableSemesters.length === 0 && <option value="">Loading semesters...</option>}
-                    {availableSemesters.map(s => (
-                        <option key={s.id} value={s.name}>
-                            {s.name} ({s.acronym})
-                        </option>
-                    ))}
-                </select>
-            </div>
+            {/* SELECTOR CONECTADO A LA BD REAL */}
+            <select
+              style={{ padding: "5px", fontWeight: "bold", minWidth: "150px" }}
+              value={semester}
+              onChange={(e) => setSemester(e.target.value)}
+            >
+              {availableSemesters.length === 0 && <option value="">Loading semesters...</option>}
+              {availableSemesters.map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name} ({s.acronym})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <button
-            disabled={!semester}
-            onClick={() => setShowModal(true)}
-            style={{
-                padding: "10px 20px",
-                background: semester ? "#007bff" : "#ccc",
-                color: "white",
-                border: "none",
-                borderRadius: "5px",
-                cursor: semester ? "pointer" : "not-allowed"
-            }}
+          disabled={!semester}
+          onClick={() => setShowModal(true)}
+          style={{
+            padding: "10px 20px",
+            background: semester ? "#007bff" : "#ccc",
+            color: "white",
+            border: "none",
+            borderRadius: "5px",
+            cursor: semester ? "pointer" : "not-allowed",
+          }}
         >
-            + Offer Module
+          + Offer Module
         </button>
       </div>
 
       {/* TABLA PRINCIPAL */}
-      <table style={{ width: "100%", borderCollapse: "collapse", boxShadow: "0 2px 5px rgba(0,0,0,0.1)", background: "white" }}>
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
+          background: "white",
+        }}
+      >
         <thead style={{ background: "#f8f9fa" }}>
           <tr>
             <th style={{ padding: "12px", textAlign: "left" }}>Module</th>
@@ -167,17 +257,53 @@ export default function OfferedModules() {
             <tr key={offer.id} style={{ borderBottom: "1px solid #eee" }}>
               <td style={{ padding: "12px" }}>{offer.module_name}</td>
               <td style={{ padding: "12px", color: "#666" }}>{offer.module_code}</td>
-              <td style={{ padding: "12px" }}>{offer.lecturer_name}</td>
+
+              {/* ✅ Jira-like assignee dropdown */}
+              <td style={{ padding: "12px" }}>
+                <select
+                  value={getCurrentLecturerId(offer)}
+                  onChange={(e) => handleAssignLecturer(offer, e.target.value)}
+                  disabled={updatingOfferId === offer.id}
+                  style={{
+                    padding: "6px 8px",
+                    borderRadius: "6px",
+                    border: "1px solid #ccc",
+                    background: updatingOfferId === offer.id ? "#f3f4f6" : "white",
+                    cursor: updatingOfferId === offer.id ? "not-allowed" : "pointer",
+                    minWidth: "220px",
+                  }}
+                >
+                  <option value="">Unassigned</option>
+                  {lecturers.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.first_name} {l.last_name}
+                    </option>
+                  ))}
+                </select>
+              </td>
+
               <td style={{ padding: "12px", textAlign: "right" }}>
-                <button onClick={() => onClickDelete(offer)} style={{ background: "#dc3545", color: "white", border: "none", padding: "5px 10px", borderRadius: "3px", cursor: "pointer" }}>Delete</button>
+                <button
+                  onClick={() => onClickDelete(offer)}
+                  style={{
+                    background: "#dc3545",
+                    color: "white",
+                    border: "none",
+                    padding: "5px 10px",
+                    borderRadius: "3px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Delete
+                </button>
               </td>
             </tr>
           ))}
           {offers.length === 0 && (
             <tr>
-                <td colSpan="4" style={{ padding: "20px", textAlign: "center", color: "#666" }}>
-                    {semester ? `No modules offered in ${semester} yet.` : "Please select a semester above."}
-                </td>
+              <td colSpan="4" style={{ padding: "20px", textAlign: "center", color: "#666" }}>
+                {semester ? `No modules offered in ${semester} yet.` : "Please select a semester above."}
+              </td>
             </tr>
           )}
         </tbody>
@@ -185,31 +311,75 @@ export default function OfferedModules() {
 
       {/* MODAL CREAR */}
       {showModal && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+          }}
+        >
           <div style={{ background: "white", padding: "30px", borderRadius: "8px", width: "400px" }}>
             <h3>Add Module to {semester}</h3>
 
-            <label style={{display:"block", marginTop:"10px", fontWeight:"bold"}}>Filter by Program:</label>
-            <select style={{width:"100%", padding:"8px"}} value={selectedProgramId} onChange={e => setSelectedProgramId(e.target.value)}>
-                <option value="">-- All Programs --</option>
-                {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <label style={{ display: "block", marginTop: "10px", fontWeight: "bold" }}>Filter by Program:</label>
+            <select style={{ width: "100%", padding: "8px" }} value={selectedProgramId} onChange={(e) => setSelectedProgramId(e.target.value)}>
+              <option value="">-- All Programs --</option>
+              {programs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
             </select>
 
-            <label style={{display:"block", marginTop:"10px", fontWeight:"bold"}}>Module <span style={{color:"red"}}>*</span>:</label>
-            <select style={{width:"100%", padding:"8px", background: selectedProgramId ? "#eef" : "white"}} onChange={e => setNewOffer({...newOffer, module_code: e.target.value})}>
-                <option value="">-- Select Module --</option>
-                {filteredModules.map(m => <option key={m.module_code} value={m.module_code}>{m.name} ({m.module_code})</option>)}
+            <label style={{ display: "block", marginTop: "10px", fontWeight: "bold" }}>
+              Module <span style={{ color: "red" }}>*</span>:
+            </label>
+            <select
+              style={{ width: "100%", padding: "8px", background: selectedProgramId ? "#eef" : "white" }}
+              onChange={(e) => setNewOffer({ ...newOffer, module_code: e.target.value })}
+            >
+              <option value="">-- Select Module --</option>
+              {filteredModules.map((m) => (
+                <option key={m.module_code} value={m.module_code}>
+                  {m.name} ({m.module_code})
+                </option>
+              ))}
             </select>
 
-            <label style={{display:"block", marginTop:"10px", fontWeight:"bold"}}>Lecturer (Optional):</label>
-            <select style={{width:"100%", padding:"8px"}} onChange={e => setNewOffer({...newOffer, lecturer_id: e.target.value})}>
-                <option value="">-- None --</option>
-                {lecturers.map(l => <option key={l.id} value={l.id}>{l.first_name} {l.last_name}</option>)}
+            <label style={{ display: "block", marginTop: "10px", fontWeight: "bold" }}>Lecturer (Optional):</label>
+            <select style={{ width: "100%", padding: "8px" }} onChange={(e) => setNewOffer({ ...newOffer, lecturer_id: e.target.value })}>
+              <option value="">-- None --</option>
+              {lecturers.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.first_name} {l.last_name}
+                </option>
+              ))}
             </select>
 
             <div style={{ marginTop: "20px", textAlign: "right" }}>
-                <button onClick={() => setShowModal(false)} style={{ marginRight: "10px", padding: "8px 15px", cursor:"pointer" }}>Cancel</button>
-                <button onClick={handleSave} style={{ background: "#007bff", color: "white", border: "none", padding: "8px 15px", borderRadius:"4px", cursor:"pointer" }}>Save</button>
+              <button onClick={() => setShowModal(false)} style={{ marginRight: "10px", padding: "8px 15px", cursor: "pointer" }}>
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                style={{
+                  background: "#007bff",
+                  color: "white",
+                  border: "none",
+                  padding: "8px 15px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>
@@ -217,12 +387,25 @@ export default function OfferedModules() {
 
       {/* MODAL ELIMINAR */}
       {showDeleteModal && itemToDelete && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+          }}
+        >
           <div style={{ background: "white", padding: "30px", borderRadius: "8px", width: "450px", boxShadow: "0 4px 10px rgba(0,0,0,0.2)" }}>
             <h3 style={{ margin: "0 0 15px 0", color: "#dc3545" }}>Delete Module Offer?</h3>
             <p style={{ color: "#555", lineHeight: "1.5" }}>
-              This action cannot be undone. It will remove the offer for: <br/>
-              <strong style={{ color: "#000" }}>{itemToDelete.module_name}</strong> <br/>
+              This action cannot be undone. It will remove the offer for: <br />
+              <strong style={{ color: "#000" }}>{itemToDelete.module_name}</strong> <br />
               from the semester <strong>{semester}</strong>.
             </p>
             <label style={{ display: "block", marginTop: "20px", fontWeight: "bold", fontSize: "0.9rem" }}>Type "DELETE" to confirm:</label>
@@ -234,8 +417,27 @@ export default function OfferedModules() {
               style={{ width: "100%", padding: "10px", marginTop: "5px", borderRadius: "5px", border: "1px solid #ccc", fontSize: "1rem" }}
             />
             <div style={{ marginTop: "25px", textAlign: "right", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                <button onClick={() => setShowDeleteModal(false)} style={{ padding: "10px 20px", background: "#e2e6ea", border: "1px solid #ccc", borderRadius: "5px", cursor: "pointer", fontWeight: "600", color: "#333" }}>Cancel</button>
-                <button onClick={executeDelete} disabled={deleteInput !== "DELETE"} style={{ padding: "10px 20px", background: deleteInput === "DELETE" ? "#dc3545" : "#f5c6cb", color: "white", border: "none", borderRadius: "5px", cursor: deleteInput === "DELETE" ? "pointer" : "not-allowed", fontWeight: "600" }}>Permanently Delete</button>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                style={{ padding: "10px 20px", background: "#e2e6ea", border: "1px solid #ccc", borderRadius: "5px", cursor: "pointer", fontWeight: "600", color: "#333" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeDelete}
+                disabled={deleteInput !== "DELETE"}
+                style={{
+                  padding: "10px 20px",
+                  background: deleteInput === "DELETE" ? "#dc3545" : "#f5c6cb",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "5px",
+                  cursor: deleteInput === "DELETE" ? "pointer" : "not-allowed",
+                  fontWeight: "600",
+                }}
+              >
+                Permanently Delete
+              </button>
             </div>
           </div>
         </div>
