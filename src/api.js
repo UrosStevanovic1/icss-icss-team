@@ -132,7 +132,9 @@ const api = {
   deleteOfferedModule(id) {
     return request(`/offered-modules/${id}`, { method: "DELETE" });
   },
-
+  updateOfferedModule(id, payload) {
+    return request(`/offered-modules/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+  },
   //  SCHEDULE
   getSchedule(semester) {
     const query = semester ? `?semester=${encodeURIComponent(semester)}` : "";
