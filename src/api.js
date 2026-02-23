@@ -130,6 +130,15 @@ const api = {
   deleteOfferedModule(id) {
     return request(`/offered-modules/${id}`, { method: "DELETE" });
   },
+  // ---------- CURRENT USER ----------
+getCurrentUser() {
+  return request("/auth/me");
+},
+
+// ---------- PM MANAGED PROGRAMS ----------
+getManagedPrograms() {
+  return request("/study-programs/managed");
+},
 
   //  SCHEDULE
   getSchedule(semester) {

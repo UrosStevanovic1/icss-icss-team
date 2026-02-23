@@ -153,13 +153,18 @@ def create_module(
     current_user: models.User = Depends(auth.get_current_user)
 ):
     r = role_of(current_user)
-    if is_admin_or_pm(current_user):
+    if r == "admin":
         pass
-    elif r == "hosp":
+    elif r == "pm":
         if p.program_id is None:
             raise HTTPException(status_code=400, detail="program_id is required")
         if p.program_id not in hosp_program_ids(db, current_user):
-            raise HTTPException(status_code=403, detail="Unauthorized for this program")
+            raise HTTPException(status_code=403, detail="PM can only create modules in own program")
+    elif r == "hosp":
+            if p.program_id is None:
+                raise HTTPException(status_code=400, detail="program_id is required")
+            if p.program_id not in hosp_program_ids(db, current_user):
+                raise HTTPException(status_code=403, detail="Unauthorized for this program")
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
 
@@ -207,13 +212,17 @@ def update_module(
         raise HTTPException(status_code=404, detail="Module not found")
 
     r = role_of(current_user)
-    if is_admin_or_pm(current_user):
+    if r == "admin":
         pass
+    elif r == "pm":
+        if row.program_id not in hosp_program_ids(db, current_user):
+            raise HTTPException(status_code=403, detail="PM can only edit own program modules")
+
+        if p.program_id is not None and p.program_id not in hosp_program_ids(db, current_user):
+            raise HTTPException(status_code=403, detail="Cannot move module to another program")
     elif r == "hosp":
         if row.program_id not in hosp_program_ids(db, current_user):
             raise HTTPException(status_code=403, detail="Unauthorized for this program")
-        if p.program_id is not None and p.program_id not in hosp_program_ids(db, current_user):
-            raise HTTPException(status_code=403, detail="Cannot move module to another program")
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
 
@@ -249,8 +258,11 @@ def delete_module(
         return {"ok": True}
 
     r = role_of(current_user)
-    if is_admin_or_pm(current_user):
+    if r == "admin":
         pass
+    elif r == "pm":
+        if row.program_id not in hosp_program_ids(db, current_user):
+            raise HTTPException(status_code=403, detail="PM can only delete own program modules")
     elif r == "hosp":
         if row.program_id not in hosp_program_ids(db, current_user):
             raise HTTPException(status_code=403, detail="Unauthorized for this program")
