@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from ..database import get_db
-from .. import models, schemas, auth  # ✅ Added auth import
+from .. import models, schemas, auth  #
 from ..permissions import is_admin_or_pm
 
 router = APIRouter(prefix="/semesters", tags=["semesters"])
@@ -38,9 +38,9 @@ def create_semester(
 def delete_semester(
     semester_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)  # ✅ Require login
+    current_user: models.User = Depends(auth.get_current_user)
 ):
-    # ✅ Check if user has PM/Admin permissions
+
     if not is_admin_or_pm(current_user):
         raise HTTPException(status_code=403, detail="Not allowed")
 
