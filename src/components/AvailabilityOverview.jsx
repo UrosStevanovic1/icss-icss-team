@@ -370,7 +370,7 @@ export default function AvailabilityOverview() {
       {showDeleteModal && (
         <DeleteConfirmationModal
             title="Delete Availability?"
-            msg="This action cannot be undone. It will remove the entire schedule for this lecturer."
+            msg="This action cannot be undone. It will clear the entire schedule for this lecturer."
             itemName={lecturerToDelete ? `${lecturerToDelete.first_name} ${lecturerToDelete.last_name}` : ""}
             onClose={() => setShowDeleteModal(false)}
             onConfirm={confirmDelete}
@@ -380,7 +380,6 @@ export default function AvailabilityOverview() {
   );
 }
 
-// --- Reusable Component (Copied from ProgramOverview) ---
 function DeleteConfirmationModal({ title, msg, itemName, onClose, onConfirm }) {
     const [input, setInput] = useState("");
     const isMatch = input === "DELETE";
