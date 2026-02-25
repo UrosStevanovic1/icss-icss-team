@@ -146,7 +146,6 @@ export default function ModuleOverview({ onNavigate }) {
     }
   };
 
-  // ✅ SORTED & FORMATTED PROGRAMS FOR DROPDOWNS
   const sortedPrograms = useMemo(() => {
     return [...programs].sort((a, b) => {
       const nameA = `[${a.degree_type || a.level || '-'}] ${a.name}`;
