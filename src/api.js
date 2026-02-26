@@ -78,7 +78,26 @@ const api = {
   deleteModule(id) { return request(`/modules/${id}`, { method: "DELETE" }); },
   getCurrentUser() {  return request("/user/me");},
 
+// ---------- ANALYTICS ----------
+  /**
+   * Fetches summary data for the dashboard KPIs and Charts.
+   * @param {string|number} semesterId - The ID or name of the semester to filter by.
+   * @param {number} [programId] - Optional program ID to filter the stats.
+   */
+  getAnalyticsSummary(semesterId, programId = null) {
+    let query = `?semester_id=${encodeURIComponent(semesterId)}`;
+    if (programId) {
+      query += `&program_id=${programId}`;
+    }
+    return request(`/analytics/summary${query}`);
+  },
 
+  /**
+   * If you want to fetch specific compliance errors separately.
+   */
+  getComplianceAlerts(semesterId) {
+    return request(`/analytics/compliance?semester_id=${encodeURIComponent(semesterId)}`);
+  },
 
   // ---------- LECTURERS ----------
   getLecturers() { return request("/lecturers/"); },

@@ -13,6 +13,7 @@ import AvailabilityOverview from "./components/AvailabilityOverview";
 import SemesterManager from "./components/SemesterManager";
 import OfferedModules from "./components/OfferedModules";
 import TimetableManager from "./components/TimetableManager";
+import AnalyticsDashboard from "./components/Analytics";
 
 function App() {
   const [activeTab, setActiveTab] = useState("programs");
@@ -55,6 +56,8 @@ function App() {
 
       case "semesters":
         return <SemesterManager {...commonProps} />;
+      case "analytics":
+        return <AnalyticsDashboard {...commonProps} />;
 
       case "semester-planning":
         return <OfferedModules {...commonProps} />;
