@@ -10,6 +10,7 @@ from .routers.auth_routes import router as auth_router
 from .routers.programs import router as programs_router
 from .routers.lecturers import router as lecturers_router
 from .routers.modules import router as modules_router
+from .routers.analytics import router as analytics_router
 from .routers.specializations import router as specializations_router
 from .routers.groups import router as groups_router
 from .routers.rooms import router as rooms_router

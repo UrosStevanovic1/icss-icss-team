@@ -6,8 +6,8 @@ from .. import models
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
-@router.get("/summary")
-def get_analytics_summary(semester_id: int, db: Session = Depends(get_db)):
+@router.get("/metrics")
+def get_analytics_metrics(semester_id: int, db: Session = Depends(get_db)):
     # 1. Total Modules in this semester
     total_modules = db.query(models.Module).filter(models.Module.semester == semester_id).count()
     
@@ -44,7 +44,7 @@ def get_analytics_summary(semester_id: int, db: Session = Depends(get_db)):
     return {
         "kpis": {
             "missing_units": missing_lecturers,
-            "pending_requests": 5, # Placeholder for your logic
+            "pending_requests": pending_requests,
             "planning_progress": int((scheduled_count / total_modules * 100)) if total_modules else 0,
             "total_modules": total_modules
         },
