@@ -76,20 +76,8 @@ const api = {
   createModule(payload) { return request("/modules/", { method: "POST", body: JSON.stringify(payload) }); },
   updateModule(id, payload) { return request(`/modules/${id}`, { method: "PUT", body: JSON.stringify(payload) }); },
   deleteModule(id) { return request(`/modules/${id}`, { method: "DELETE" }); },
-    getCurrentUser: async () => {
-    const response = await fetch("/api/user/me", {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
+  getCurrentUser() {  return request("/auth/me");},
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch current user");
-    }
-
-    return response.json();
-  },
 
 
   // ---------- LECTURERS ----------

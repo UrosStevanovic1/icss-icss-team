@@ -75,6 +75,7 @@ const api = {
   createModule(payload) { return request("/modules/", { method: "POST", body: JSON.stringify(payload) }); },
   updateModule(id, payload) { return request(`/modules/${id}`, { method: "PUT", body: JSON.stringify(payload) }); },
   deleteModule(id) { return request(`/modules/${id}`, { method: "DELETE" }); },
+  getCurrentUser() {  return request("/auth/me");},
 
   // ---------- LECTURERS ----------
   getLecturers() { return request("/lecturers/"); },
