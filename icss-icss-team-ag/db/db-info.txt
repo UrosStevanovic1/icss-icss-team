@@ -1,7 +1,0 @@
-Service URI postgres: //avnadmin:AVNS_OmX8alQ_qZEABnoB00v@pg-icss-mediadesign-icss.c.aivencloud.com:15687/defaultdb?sslmode=require
-Database name defaultdb
-Host pg-icss-mediadesign-icss.c.aivencloud.com
-Port 15687
-User avnadmin
-Password <see miro>
-SSL mode require
