@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import {
   Calendar, CalendarDays, CalendarPlus, GraduationCap, BookOpen,
   User, Users, MapPin, Sliders, Clock, ChevronLeft, ChevronRight,
-  Shield
+  Shield,
+  ChartAreaIcon
 } from "lucide-react";
 import api from "./api";
 import "./App.css";
@@ -138,6 +139,8 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
           <NavLink id="timetable" icon={CalendarDays} label="Timetable View" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
           <NavLink id="semester-planning" icon={CalendarPlus} label="Semester Planning" rolesAllowed={["admin", "pm", "hosp", "lecturer"]} />
           <NavLink id="semesters" icon={Calendar} label="Semesters" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
+          <NavLink id="analytics" icon={ChartAreaIcon} label="Analytics" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
+
 
           <SectionTitle title="Core Curriculum" />
           <NavLink id="programs" icon={GraduationCap} label="Study Programs" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
