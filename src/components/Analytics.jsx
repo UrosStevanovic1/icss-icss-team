@@ -75,7 +75,7 @@ const AnalyticsDashboard = () => {
           progress: data.planning_progress,
           totalModules: data.total_modules,
           staffData: data.staff_composition,
-          barData: data.teaching_load_comparison
+          barData: data.bar_data
         });
       } catch (err) {
         console.error("Failed to fetch analytics:", err);
