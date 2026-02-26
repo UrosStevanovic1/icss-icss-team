@@ -1,4 +1,4 @@
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from "../api";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -37,6 +37,16 @@ const AnalyticsDashboard = () => {
     staffData: [],
     barData: []
   });
+  const handleExport = () => {
+  const reportData = JSON.stringify(metrics, null, 2);
+  const blob = new Blob([reportData], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `Analytics_Report_${selectedSemester}.json`;
+  link.click();
+  alert("Exporting data summary as JSON...");
+};
 
   // 1. Fetch Data from your FastAPI Backend
   useEffect(() => {
@@ -75,6 +85,7 @@ const AnalyticsDashboard = () => {
     fetchMetrics();
   }, [selectedSemester]);
 
+
   return (
     <div style={styles.container}>
       {/* HEADER */}
@@ -83,8 +94,10 @@ const AnalyticsDashboard = () => {
           <h1 style={styles.title}>Scheduling Analytics</h1>
           <p style={styles.subtitle}>Regulatory compliance and workload summaries</p>
         </div>
-        <button style={{...styles.btn, ...styles.primaryBtn}}>
-          <Download size={18} /> Export PDF
+        <button 
+        onClick={handleExport}
+        style={{...styles.btn, ...styles.primaryBtn}}>
+          <Download size={18} /> Export Data
         </button>
       </div>
 

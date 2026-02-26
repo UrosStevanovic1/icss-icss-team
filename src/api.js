@@ -84,12 +84,12 @@ const api = {
    * @param {string|number} semesterId - The ID or name of the semester to filter by.
    * @param {number} [programId] - Optional program ID to filter the stats.
    */
-  getAnalyticsSummary(semesterId, programId = null) {
+  getAnalyticsMetrics(semesterId, programId = null) {
     let query = `?semester_id=${encodeURIComponent(semesterId)}`;
     if (programId) {
       query += `&program_id=${programId}`;
     }
-    return request(`/analytics/summary${query}`);
+    return request(`/analytics/metrics${query}`);
   },
 
   /**
