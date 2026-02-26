@@ -1,0 +1,111 @@
+.container {
+     padding: 20px;
+     font-family: 'Segoe UI', sans-serif;
+     color: #333;
+     max-width: 100%;
+}
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 15px
+}
+  .title {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #333
+}
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border: 1px solid #ddd;
+    font-size: 0.9rem
+}
+.thead {
+    background: #f2f2f2;
+    border-bottom: 2px solid #ccc
+}
+.th {
+    text-align: left;
+    padding: 10px 15px;
+    font-weight: 600;
+    color: #333333
+}
+.td {
+    padding: 10px 15px;
+    vertical-align: middle;
+    border-bottom: 1px solid #eee
+ }
+  .btn{
+    padding: 8px 16px;
+    border-radius: 6px; border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    margin-left: 5px;
+    background: #007bff;
+    color: white
+}
+  .editBtn {
+    background: #6c757d;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    margin-right: 5px
+  }
+  .deleteBtn {
+    background: #dc3545;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer
+  }
+
+  .modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000
+}
+.modalContent {
+     background: white;
+    padding: 30px;
+    border-radius: 12px;
+    width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2)
+}
+  .formGroup {
+    margin-bottom: 20px
+ }
+  .label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    font-size: 0.95rem
+ }
+  .input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 1rem;
+    box-sizing: border-box
+  }
+  .helper {
+    font-size: 0.85rem;
+    color: #666;
+    margin-top: 5px
+}
