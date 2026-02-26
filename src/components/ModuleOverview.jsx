@@ -91,6 +91,9 @@ export default function ModuleOverview({ onNavigate }) {
   const [specializations, setSpecializations] = useState([]);
   const [customRoomTypes, setCustomRoomTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [role, setRole] = useState(null);
+  const [managedProgramIds, setManagedProgramIds] = useState([]);
 
   // Filter States
   const [query, setQuery] = useState("");
@@ -124,12 +127,27 @@ export default function ModuleOverview({ onNavigate }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [modData, progData, specData, roomData] = await Promise.all([
-        api.getModules(),
-        api.getPrograms(),
-        api.getSpecializations(),
-        api.getRooms()
-      ]);
+     const [
+  modData,
+  progData,
+  specData,
+  roomData,
+  userData
+] = await Promise.all([
+  api.getModules(),
+  api.getPrograms(),
+  api.getSpecializations(),
+  api.getRooms(),
+  api.getCurrentUser()
+]);
+
+setCurrentUser(userData);
+setRole(userData.role);
+
+if (userData.role === "pm") {
+  const managed = await api.getManagedPrograms();
+  setManagedProgramIds(managed.map(p => p.id));
+}
 
       setModules(Array.isArray(modData) ? modData : []);
       setPrograms(Array.isArray(progData) ? progData : []);
@@ -384,7 +402,17 @@ export default function ModuleOverview({ onNavigate }) {
       alert("Error saving module.");
     }
   };
+const canManageModule = (module) => {
+  if (!role) return false;
 
+  if (role === "admin") return true;
+
+  if (role === "pm" && managedProgramIds.includes(module.program_id)) {
+    return true;
+  }
+
+  return false;
+};
   return (
     <div style={styles.container}>
       <div style={styles.controlsBar}>
@@ -439,8 +467,15 @@ export default function ModuleOverview({ onNavigate }) {
           </select>
         </div>
 
-        <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={openAdd}>+ New Module</button>
-      </div>
+{(role === "admin" || role === "pm") && (
+  <button
+    style={{ ...styles.btn, ...styles.primaryBtn }}
+    onClick={openAdd}
+  >
+    + New Module
+  </button>
+)}
+     </div>
 
       <div style={styles.tableContainer}>
         <table style={styles.table}>
@@ -498,8 +533,23 @@ export default function ModuleOverview({ onNavigate }) {
                       <td style={{...styles.td, fontSize: '0.85rem'}}>{m.room_type}</td>
                       <td style={{...styles.td, textAlign: "right"}}>
                         <div style={styles.actionContainer}>
-                          <button style={{ ...styles.actionBtn, ...styles.editBtn }} onClick={() => openEdit(m)}>Edit</button>
-                          <button style={{ ...styles.actionBtn, ...styles.delBtn }} onClick={() => initiateDelete(m)}>Delete</button>
+                          {canManageModule(m) && (
+  <>
+    <button
+      style={{ ...styles.actionBtn, ...styles.editBtn }}
+      onClick={() => openEdit(m)}
+    >
+      Edit
+    </button>
+
+    <button
+      style={{ ...styles.actionBtn, ...styles.delBtn }}
+      onClick={() => initiateDelete(m)}
+    >
+      Delete
+    </button>
+  </>
+)}
                         </div>
                       </td>
                     </tr>
