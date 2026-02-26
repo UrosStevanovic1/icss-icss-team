@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import api from "../api";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -40,44 +40,40 @@ const AnalyticsDashboard = () => {
 
   // 1. Fetch Data from your FastAPI Backend
   useEffect(() => {
-    const fetchInitialData = async () => {
+    const fetchSemester = async () => {
       try {
         // Fetching Semesters for the dropdown
-        const semRes = await fetch('http://localhost:8000/semesters/');
-        const semData = await semRes.json();
+        const semData = await api.getSemesters();
         setSemesters(semData);
         if (semData.length > 0) setSelectedSemester(semData[0].id);
+        } catch (err) {
+        console.error(err);
+        }
+      };
+    fetchSemester();
+  }, []);
+  useEffect(() => {
+    if (!selectedSemester) return;
 
-        // Fetching the Analytics Summary (New Endpoint we discussed)
-        const anaRes = await fetch(`http://localhost:8000/analytics/summary?semester_id=${semData[0]?.id}`);
-        const anaData = await anaRes.json();
-        setMetrics(anaData);
+    const fetchMetrics = async () => {
+      try {
+        // Replace with your actual API endpoint and response structure
+        const data = await api.getAnalyticsMetrics(selectedSemester);
+        setMetrics({
+          missingUnits: data.missing_units,
+          pendingRequests: data.pending_requests,
+          progress: data.planning_progress,
+          totalModules: data.total_modules,
+          staffData: data.staff_composition,
+          barData: data.teaching_load_comparison
+        });
       } catch (err) {
-        console.error("Backend connection failed. Showing Mock Data for now.");
-        loadMockData();
+        console.error("Failed to fetch analytics:", err);
+
       }
     };
-    fetchInitialData();
-  }, []);
-
-  const loadMockData = () => {
-    setMetrics({
-      missingUnits: 4,
-      pendingRequests: 7,
-      progress: 65,
-      totalModules: 32,
-      staffData: [
-        { name: 'Full-Time', value: 12 },
-        { name: 'Part-Time', value: 8 },
-        { name: 'Freelancer', value: 5 }
-      ],
-      barData: [
-        { name: 'Applied CS', needed: 140, scheduled: 110 },
-        { name: 'Business Info', needed: 100, scheduled: 95 },
-        { name: 'Health Care', needed: 80, scheduled: 40 }
-      ]
-    });
-  };
+    fetchMetrics();
+  }, [selectedSemester]);
 
   return (
     <div style={styles.container}>
