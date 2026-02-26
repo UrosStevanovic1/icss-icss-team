@@ -77,7 +77,7 @@ const api = {
   updateModule(id, payload) { return request(`/modules/${id}`, { method: "PUT", body: JSON.stringify(payload) }); },
   deleteModule(id) { return request(`/modules/${id}`, { method: "DELETE" }); },
     getCurrentUser: async () => {
-    const response = await fetch("/api/users/me", {
+    const response = await fetch("/api/user/me", {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${localStorage.getItem("token")}`,
