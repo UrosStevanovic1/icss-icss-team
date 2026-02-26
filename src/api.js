@@ -69,12 +69,28 @@ const api = {
   createSpecialization(payload) { return request("/specializations/", { method: "POST", body: JSON.stringify(payload) }); },
   updateSpecialization(id, payload) { return request(`/specializations/${id}`, { method: "PUT", body: JSON.stringify(payload) }); },
   deleteSpecialization(id) { return request(`/specializations/${id}`, { method: "DELETE" }); },
+  
 
   // ---------- MODULES ----------
   getModules() { return request("/modules/"); },
   createModule(payload) { return request("/modules/", { method: "POST", body: JSON.stringify(payload) }); },
   updateModule(id, payload) { return request(`/modules/${id}`, { method: "PUT", body: JSON.stringify(payload) }); },
   deleteModule(id) { return request(`/modules/${id}`, { method: "DELETE" }); },
+    getCurrentUser: async () => {
+    const response = await fetch("/api/users/me", {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch current user");
+    }
+
+    return response.json();
+  },
+
 
   // ---------- LECTURERS ----------
   getLecturers() { return request("/lecturers/"); },
