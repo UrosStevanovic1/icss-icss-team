@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import api from "./api";
 import "./App.css";
-import { BarChart2 } from "lucide-react";
 
 const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrentUserRole }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);

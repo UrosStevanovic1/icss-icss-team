@@ -91,7 +91,6 @@ export default function ModuleOverview({ onNavigate }) {
   const [specializations, setSpecializations] = useState([]);
   const [customRoomTypes, setCustomRoomTypes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
   const [role, setRole] = useState(null);
   const [managedProgramIds, setManagedProgramIds] = useState([]);
 
