@@ -50,6 +50,7 @@ const AnalyticsDashboard = () => {
 
   // 1. Fetch Data from your FastAPI Backend
   useEffect(() => {
+
     const fetchSemester = async () => {
       try {
         // Fetching Semesters for the dropdown
@@ -70,11 +71,11 @@ const AnalyticsDashboard = () => {
         // Replace with your actual API endpoint and response structure
         const data = await api.getAnalyticsMetrics(selectedSemester);
         setMetrics({
-          missingUnits: data.missing_units,
-          pendingRequests: data.pending_requests,
-          progress: data.planning_progress,
-          totalModules: data.total_modules,
-          staffData: data.staff_composition,
+          missingUnits: data.kpis.missing_units,
+          pendingRequests: data.kpis.pending_requests,
+          progress: data.kpis.planning_progress,
+          totalModules: data.kpis.total_modules,
+          staffData: data.lecturer_stats,
           barData: data.bar_data
         });
       } catch (err) {
@@ -113,7 +114,6 @@ const AnalyticsDashboard = () => {
             {semesters.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
-            <option value="mock">Summer Semester 2026 (Demo)</option>
           </select>
         </div>
       </div>
