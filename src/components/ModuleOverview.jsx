@@ -93,7 +93,7 @@ export default function ModuleOverview({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null);
   const [managedProgramIds, setManagedProgramIds] = useState([]);
-
+  const [currentUser, setCurrentUser] = useState(null);
   // Filter States
   const [query, setQuery] = useState("");
   const [filterProgram, setFilterProgram] = useState("ALL");
