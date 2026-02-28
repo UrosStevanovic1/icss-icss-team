@@ -94,6 +94,7 @@ export default function ModuleOverview({ onNavigate }) {
   const [role, setRole] = useState(null);
   const [managedProgramIds, setManagedProgramIds] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+
   // Filter States
   const [query, setQuery] = useState("");
   const [filterProgram, setFilterProgram] = useState("ALL");
@@ -126,21 +127,29 @@ export default function ModuleOverview({ onNavigate }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      // ✅ FIX: Catch individual errors so one failure doesn't wipe out the whole table
+      // ✅ FIX: Catch errors strictly so the UI doesn't crash if an endpoint acts up
       const [modData, progData, specData, roomData, userData] = await Promise.all([
-        api.getModules().catch(e => { console.error("Modules failed:", e); return []; }),
-        api.getPrograms().catch(e => { console.error("Programs failed:", e); return []; }),
-        api.getSpecializations().catch(e => { console.error("Specs failed:", e); return []; }),
-        api.getRooms().catch(e => { console.error("Rooms failed:", e); return []; }),
-        api.getCurrentUser().catch(e => { console.error("User failed:", e); return { role: "student" }; })
+        api.getModules().catch(() => []),
+        api.getPrograms().catch(() => []),
+        api.getSpecializations().catch(() => []),
+        api.getRooms().catch(() => []),
+        api.getCurrentUser().catch(() => ({ role: "student" }))
       ]);
 
       setCurrentUser(userData);
-      setRole(userData?.role || null);
+      const userRole = userData?.role || null;
+      setRole(userRole);
 
-      if (userData?.role === "pm") {
-        const managed = await api.getManagedPrograms();
-        setManagedProgramIds(managed.map(p => p.id));
+      // ✅ FIX: Verify it is an array to prevent "managed.map is not a function" crashes
+      if (userRole === "pm" || userRole === "hosp") {
+        try {
+          const managed = await api.getManagedPrograms();
+          if (Array.isArray(managed)) {
+            setManagedProgramIds(managed.map(p => p.id));
+          }
+        } catch (e) {
+          console.error("Could not fetch managed programs", e);
+        }
       }
 
       setModules(Array.isArray(modData) ? modData : []);
@@ -171,16 +180,13 @@ export default function ModuleOverview({ onNavigate }) {
     const q = query.trim().toLowerCase();
 
     return modules.filter(m => {
-      // 1. Search Query
       const matchesSearch = (m?.name || "").toLowerCase().includes(q) || (m?.module_code || "").toLowerCase().includes(q);
 
-      // 2. Program Filter (Removed GLOBAL option)
       let matchesProgram = true;
       if (filterProgram !== "ALL") {
         matchesProgram = String(m.program_id) === filterProgram;
       }
 
-      // 3. Assessment Filter
       let matchesAssessment = true;
       if (filterAssessment !== "ALL") {
         const ab = Array.isArray(m?.assessment_breakdown) ? m.assessment_breakdown : [];
@@ -191,7 +197,6 @@ export default function ModuleOverview({ onNavigate }) {
         }
       }
 
-      // 4. Room Type Filter
       const matchesRoom = filterRoomType === "ALL" || m.room_type === filterRoomType;
 
       return matchesSearch && matchesProgram && matchesAssessment && matchesRoom;
@@ -323,6 +328,11 @@ export default function ModuleOverview({ onNavigate }) {
       return false;
     }
 
+    if ((role === "pm" || role === "hosp") && !draft.program_id) {
+        alert("Project Managers and HOSPs MUST assign the module to a specific Study Program. You cannot create a Global module.");
+        return false;
+    }
+
     if (assessmentTotal !== 100) {
       alert(`Assessment weights must total 100%. Current: ${assessmentTotal}%`);
       return false;
@@ -397,17 +407,16 @@ export default function ModuleOverview({ onNavigate }) {
       alert("Error saving module.");
     }
   };
-const canManageModule = (module) => {
-  if (!role) return false;
 
-  if (role === "admin") return true;
+  const canManageModule = (module) => {
+    if (!role) return false;
+    if (role === "admin") return true;
+    if ((role === "pm" || role === "hosp") && managedProgramIds.includes(module.program_id)) {
+      return true;
+    }
+    return false;
+  };
 
-  if (role === "pm" && managedProgramIds.includes(module.program_id)) {
-    return true;
-  }
-
-  return false;
-};
   return (
     <div style={styles.container}>
       <div style={styles.controlsBar}>
@@ -462,14 +471,15 @@ const canManageModule = (module) => {
           </select>
         </div>
 
-{(role === "admin" || role === "pm") && (
-  <button
-    style={{ ...styles.btn, ...styles.primaryBtn }}
-    onClick={openAdd}
-  >
-    + New Module
-  </button>
-)}
+      {/* ✅ FIX: HOSPs can also click the new module button */}
+      {(role === "admin" || role === "pm" || role === "hosp") && (
+        <button
+          style={{ ...styles.btn, ...styles.primaryBtn }}
+          onClick={openAdd}
+        >
+          + New Module
+        </button>
+      )}
      </div>
 
       <div style={styles.tableContainer}>
@@ -529,22 +539,22 @@ const canManageModule = (module) => {
                       <td style={{...styles.td, textAlign: "right"}}>
                         <div style={styles.actionContainer}>
                           {canManageModule(m) && (
-  <>
-    <button
-      style={{ ...styles.actionBtn, ...styles.editBtn }}
-      onClick={() => openEdit(m)}
-    >
-      Edit
-    </button>
+                            <>
+                              <button
+                                style={{ ...styles.actionBtn, ...styles.editBtn }}
+                                onClick={() => openEdit(m)}
+                              >
+                                Edit
+                              </button>
 
-    <button
-      style={{ ...styles.actionBtn, ...styles.delBtn }}
-      onClick={() => initiateDelete(m)}
-    >
-      Delete
-    </button>
-  </>
-)}
+                              <button
+                                style={{ ...styles.actionBtn, ...styles.delBtn }}
+                                onClick={() => initiateDelete(m)}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
