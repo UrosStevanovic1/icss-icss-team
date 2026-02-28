@@ -118,17 +118,21 @@ def _make_response(row: models.Module) -> schemas.ModuleResponse:
 
     legacy = payload.get("legacy")
     assessment_type_out = legacy if legacy else row.assessment_type
+    specializations_mapped = [
+        schemas.SpecializationResponse.model_validate(s)
+        for s in (row.specializations or [])
+    ]
 
     return schemas.ModuleResponse(
         module_code=row.module_code,
         name=row.name,
         ects=row.ects,
-        room_type=row.room_type,
+        room_type=str(row.room_type) if row.room_type is not None else "", # Convert just in case
         assessment_type=assessment_type_out,
         semester=row.semester,
         category=row.category,
         program_id=row.program_id,
-        specializations=row.specializations or [],
+        specializations=specializations_mapped,
         assessment_breakdown=assessments
     )
 
