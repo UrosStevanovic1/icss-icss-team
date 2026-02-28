@@ -93,7 +93,6 @@ export default function ModuleOverview({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null);
   const [managedProgramIds, setManagedProgramIds] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
 
   // Filter States
   const [query, setQuery] = useState("");
@@ -136,9 +135,8 @@ export default function ModuleOverview({ onNavigate }) {
         api.getCurrentUser().catch(() => ({ role: fallbackRole }))
       ]);
 
-      setCurrentUser(userData);
 
-      // ✅ FIX: Force role to strictly be lowercase so it matches "admin" and "pm" safely
+
       const rawRole = userData?.role || fallbackRole;
       const userRole = rawRole.toLowerCase();
       setRole(userRole);
@@ -147,7 +145,7 @@ export default function ModuleOverview({ onNavigate }) {
         try {
           const managed = await api.getManagedPrograms();
           if (Array.isArray(managed)) {
-            // ✅ FIX: Ensure all Managed Program IDs are strictly Numbers
+
             setManagedProgramIds(managed.map(p => Number(p.id)));
           }
         } catch (e) {
