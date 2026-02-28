@@ -28,6 +28,15 @@ lecturer_domains = Table(
     Column("domain_id", Integer, ForeignKey("domains.id", ondelete="CASCADE"), primary_key=True),
 )
 
+# ✅ NEW: Association Table for Many-to-Many relationship between Schedule Entries and Groups
+schedule_entry_groups = Table(
+    "schedule_entry_groups",
+    Base.metadata,
+    Column("schedule_entry_id", Integer, ForeignKey("schedule_entries.id", ondelete="CASCADE"), primary_key=True),
+    Column("group_id", Integer, ForeignKey("groups.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -35,6 +44,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False)  # admin, pm, hosp, lecturer, student
     # REMOVED lecturer_id and lecturer_profile to match the strict DB schema
+
 
 class Domain(Base):
     __tablename__ = "domains"
@@ -124,6 +134,13 @@ class Group(Base):
     program = Column("Program", String, nullable=True)
     parent_group = Column("Parent_Group", String, nullable=True)
 
+    # ✅ NEW: backref to schedule entries (many-to-many)
+    schedule_entries = relationship(
+        "ScheduleEntry",
+        secondary=schedule_entry_groups,
+        back_populates="groups",
+    )
+
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -171,13 +188,9 @@ class OfferedModule(Base):
     __tablename__ = "offered_modules"
 
     id = Column(Integer, primary_key=True, index=True)
-
     module_code = Column(String, ForeignKey("modules.module_code", ondelete="CASCADE"), nullable=False)
-
     lecturer_id = Column(Integer, ForeignKey("lecturers.ID"), nullable=True)
-
     semester = Column(String, nullable=False)
-
     status = Column(String, default="Confirmed")
 
     module = relationship("Module")
@@ -188,9 +201,7 @@ class ScheduleEntry(Base):
     __tablename__ = "schedule_entries"
 
     id = Column(Integer, primary_key=True, index=True)
-
     offered_module_id = Column(Integer, ForeignKey("offered_modules.id", ondelete="CASCADE"), nullable=False)
-
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=True)
 
     day_of_week = Column(String, nullable=False)  # "Monday", "Tuesday"...
@@ -201,3 +212,10 @@ class ScheduleEntry(Base):
 
     offered_module = relationship("OfferedModule")
     room = relationship("Room")
+
+    # ✅ NEW: groups (many-to-many)
+    groups = relationship(
+        "Group",
+        secondary=schedule_entry_groups,
+        back_populates="schedule_entries",
+    )
