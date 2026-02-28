@@ -19,7 +19,6 @@ class DomainBase(BaseModel):
 
 class DomainCreate(DomainBase):
     pass
-
 class DomainResponse(DomainBase):
     id: int
     class Config:

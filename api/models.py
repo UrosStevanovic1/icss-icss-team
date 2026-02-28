@@ -11,6 +11,7 @@ module_specializations = Table(
     Column("module_code", String, ForeignKey("modules.module_code", ondelete="CASCADE"), primary_key=True),
     Column("specialization_id", Integer, ForeignKey("specializations.id", ondelete="CASCADE"), primary_key=True),
 )
+
 # Association Table for Many-to-Many relationship between Lecturers and Modules
 lecturer_modules = Table(
     "lecturer_modules",
@@ -26,16 +27,14 @@ lecturer_domains = Table(
     Column("lecturer_id", Integer, ForeignKey("lecturers.ID", ondelete="CASCADE"), primary_key=True),
     Column("domain_id", Integer, ForeignKey("domains.id", ondelete="CASCADE"), primary_key=True),
 )
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(200), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False)  # admin, pm, hosp, lecturer, student
-    lecturer_id = Column(Integer, ForeignKey("lecturers.ID"), nullable=True)
-
-    lecturer_profile = relationship("Lecturer")
-
+    # REMOVED lecturer_id and lecturer_profile to match the strict DB schema
 
 class Domain(Base):
     __tablename__ = "domains"
@@ -59,13 +58,10 @@ class Lecturer(Base):
     location = Column(String(200), nullable=True)
     teaching_load = Column(String(100), nullable=True)
 
-    # ✅ keep existing single-domain fields for now OR remove later
     domain_id = Column(Integer, ForeignKey("domains.id"), nullable=True)
     domain_rel = relationship("Domain")
 
-    # ✅ NEW multi-domain relation
     domains = relationship("Domain", secondary=lecturer_domains, back_populates="lecturers")
-
     modules = relationship("Module", secondary=lecturer_modules, back_populates="lecturers")
 
     @property
