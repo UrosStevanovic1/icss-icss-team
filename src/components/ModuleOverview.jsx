@@ -415,6 +415,7 @@ export default function ModuleOverview({ onNavigate }) {
     if (!role) return false;
     if (role === "admin") return true;
 
+
     if ((role === "pm" || role === "hosp") && managedProgramIds.includes(Number(module.program_id))) {
       return true;
     }
