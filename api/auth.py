@@ -48,6 +48,9 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
+        # NEW: Extract the dynamically assigned lecturer_id from the token
+        lecturer_id: int = payload.get("lecturer_id")
+
         if email is None:
             raise credentials_exception
     except JWTError:
@@ -56,4 +59,9 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(models.User).filter(models.User.email == email).first()
     if user is None:
         raise credentials_exception
+
+    # NEW: Dynamically attach lecturer_id to the user object
+    # This ensures backward compatibility with your permissions.py file
+    user.lecturer_id = lecturer_id if lecturer_id != 0 else None
+
     return user
