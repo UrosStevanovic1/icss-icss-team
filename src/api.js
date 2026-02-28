@@ -158,17 +158,23 @@ const api = {
   updateOfferedModule(id, payload) {
     return request(`/offered-modules/${id}`, { method: "PUT", body: JSON.stringify(payload) });
   },
-  //  SCHEDULE
+ // ---------- SCHEDULE ----------
+  // ✅ FIX: remove extra "/" before query string
   getSchedule(semester) {
     const query = semester ? `?semester=${encodeURIComponent(semester)}` : "";
-    return request(`/schedule/${query}`);
+    return request(`/schedule${query}`);
   },
   createScheduleEntry(payload) {
     return request("/schedule/", { method: "POST", body: JSON.stringify(payload) });
+  },
+  // ✅ NEW: editing existing schedule entries (requires PUT backend)
+  updateScheduleEntry(id, payload) {
+    return request(`/schedule/${id}`, { method: "PUT", body: JSON.stringify(payload) });
   },
   deleteScheduleEntry(id) {
     return request(`/schedule/${id}`, { method: "DELETE" });
   },
 };
+
 
 export default api;
