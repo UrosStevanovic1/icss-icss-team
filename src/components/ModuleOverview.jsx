@@ -127,25 +127,28 @@ export default function ModuleOverview({ onNavigate }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      // ✅ FIX: Catch errors strictly so the UI doesn't crash if an endpoint acts up
+      const fallbackRole = localStorage.getItem("userRole") || "student";
       const [modData, progData, specData, roomData, userData] = await Promise.all([
         api.getModules().catch(() => []),
         api.getPrograms().catch(() => []),
         api.getSpecializations().catch(() => []),
         api.getRooms().catch(() => []),
-        api.getCurrentUser().catch(() => ({ role: "student" }))
+        api.getCurrentUser().catch(() => ({ role: fallbackRole }))
       ]);
 
       setCurrentUser(userData);
-      const userRole = userData?.role || null;
+
+      // ✅ FIX: Force role to strictly be lowercase so it matches "admin" and "pm" safely
+      const rawRole = userData?.role || fallbackRole;
+      const userRole = rawRole.toLowerCase();
       setRole(userRole);
 
-      // ✅ FIX: Verify it is an array to prevent "managed.map is not a function" crashes
       if (userRole === "pm" || userRole === "hosp") {
         try {
           const managed = await api.getManagedPrograms();
           if (Array.isArray(managed)) {
-            setManagedProgramIds(managed.map(p => p.id));
+            // ✅ FIX: Ensure all Managed Program IDs are strictly Numbers
+            setManagedProgramIds(managed.map(p => Number(p.id)));
           }
         } catch (e) {
           console.error("Could not fetch managed programs", e);
@@ -411,7 +414,8 @@ export default function ModuleOverview({ onNavigate }) {
   const canManageModule = (module) => {
     if (!role) return false;
     if (role === "admin") return true;
-    if ((role === "pm" || role === "hosp") && managedProgramIds.includes(module.program_id)) {
+
+    if ((role === "pm" || role === "hosp") && managedProgramIds.includes(Number(module.program_id))) {
       return true;
     }
     return false;
@@ -471,7 +475,6 @@ export default function ModuleOverview({ onNavigate }) {
           </select>
         </div>
 
-      {/* ✅ FIX: HOSPs can also click the new module button */}
       {(role === "admin" || role === "pm" || role === "hosp") && (
         <button
           style={{ ...styles.btn, ...styles.primaryBtn }}
