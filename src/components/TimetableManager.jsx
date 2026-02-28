@@ -45,12 +45,7 @@ export default function TimetableManager({ currentUserRole }) {
   });
 
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-
-  // Hours for the classic calendar grid views (Month/Semester untouched)
-  const hours = [
-    "08:00", "09:00", "10:00", "11:00", "12:00", "13:00",
-    "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"
-  ];
+  const weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   // Colores Pastel
   const pastelColors = [
@@ -74,20 +69,16 @@ export default function TimetableManager({ currentUserRole }) {
     return hh * 60 + mm;
   };
 
-  // --- HELPERS DE FECHAS (CW CALCULATION) ---
+  // --- HELPERS DE FECHAS ---
   const getWeekNumber = (d) => {
     d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    return weekNo;
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   };
 
-  const formatDateShort = (date) => {
-    return date
-      .toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" })
-      .replace(/\//g, ".");
-  };
+  const formatDateShort = (date) =>
+    date.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }).replace(/\//g, ".");
 
   const getWeekRangeString = () => {
     const curr = new Date(currentDate);
@@ -102,19 +93,6 @@ export default function TimetableManager({ currentUserRole }) {
   const getDayNameFromDate = (date) => date.toLocaleDateString("en-US", { weekday: "long" });
   const displayDateNum = formatDateShort(currentDate);
   const displayMonthName = currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-
-  const visibleDays = viewMode === "Week" ? daysOfWeek : [getDayNameFromDate(currentDate)];
-
-  const getDateForDayOfWeek = (dayName) => {
-    const dayIndex = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].indexOf(dayName);
-    const curr = new Date(currentDate);
-    const currentDayIso = curr.getDay() || 7;
-    const targetDayIso = dayIndex === 0 ? 7 : dayIndex;
-    const diff = targetDayIso - currentDayIso;
-    const targetDate = new Date(curr);
-    targetDate.setDate(curr.getDate() + diff);
-    return formatDateShort(targetDate);
-  };
 
   // --- CARGA DE DATOS ---
   const loadSchedule = useCallback(async () => {
@@ -142,7 +120,7 @@ export default function TimetableManager({ currentUserRole }) {
   }, [selectedSemester]);
 
   useEffect(() => {
-    async function loadInitialData() {
+    (async () => {
       try {
         const s = await api.getSemesters();
         setSemesters(s || []);
@@ -156,8 +134,7 @@ export default function TimetableManager({ currentUserRole }) {
       } catch (e) {
         console.error(e);
       }
-    }
-    loadInitialData();
+    })();
   }, []);
 
   useEffect(() => {
@@ -175,8 +152,7 @@ export default function TimetableManager({ currentUserRole }) {
 
       if (filterGroup) {
         const groupNames =
-          entry.group_names ||
-          (Array.isArray(entry.groups) ? entry.groups.map((g) => g.name ?? g.Name) : []);
+          entry.group_names || (Array.isArray(entry.groups) ? entry.groups.map((g) => g.name ?? g.Name) : []);
         if (!groupNames.includes(filterGroup)) return false;
       }
       return true;
@@ -188,17 +164,13 @@ export default function TimetableManager({ currentUserRole }) {
     if (viewMode === "Semester" && !isListView) return;
 
     const newDate = new Date(currentDate);
-    if (viewMode === "Week" || isListView) {
-      newDate.setDate(currentDate.getDate() + (direction === "next" ? 7 : -7));
-    } else if (viewMode === "Day") {
-      newDate.setDate(currentDate.getDate() + (direction === "next" ? 1 : -1));
-    } else if (viewMode === "Month") {
-      newDate.setMonth(currentDate.getMonth() + (direction === "next" ? 1 : -1));
-    }
+    if (viewMode === "Week" || isListView) newDate.setDate(currentDate.getDate() + (direction === "next" ? 7 : -7));
+    else if (viewMode === "Day") newDate.setDate(currentDate.getDate() + (direction === "next" ? 1 : -1));
+    else if (viewMode === "Month") newDate.setMonth(currentDate.getMonth() + (direction === "next" ? 1 : -1));
     setCurrentDate(newDate);
   };
 
-  // --- Modal helpers (ONLY used in Day/Week changes) ---
+  // --- Modal helpers ---
   const getModuleLabel = (m) => {
     const modName = m.module_name ?? m.name ?? m.module?.name ?? m.module?.Name ?? "Unnamed module";
     const lecName = m.lecturer_name ?? m.lecturerName ?? m.lecturer?.name ?? "";
@@ -229,7 +201,7 @@ export default function TimetableManager({ currentUserRole }) {
       start_time: entry.start_time,
       end_time: entry.end_time,
       offered_module_id: String(entry.offered_module_id ?? ""),
-      room_id: "", // backend doesn't return room_id; user can reselect
+      room_id: "",
       group_ids: Array.isArray(entry.group_ids) ? entry.group_ids : [],
     });
     setShowModal(true);
@@ -245,7 +217,7 @@ export default function TimetableManager({ currentUserRole }) {
     if (e <= s) return alert("End time must be after start time");
 
     try {
-      // edit without PUT => delete old, then create new (matches previous api.js)
+      // edit without PUT => delete old, then create new (matches your previous api.js)
       if (editingEntry?.id) {
         await api.deleteScheduleEntry(editingEntry.id);
       }
@@ -280,13 +252,99 @@ export default function TimetableManager({ currentUserRole }) {
     }
   };
 
-  // --- 1) LIST VIEW (UNCHANGED style) ---
-  const renderListView = () => {
-    const sortedList = [...filteredData].sort((a, b) => {
-      const dayOrder = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5 };
-      if (dayOrder[a.day_of_week] !== dayOrder[b.day_of_week]) return dayOrder[a.day_of_week] - dayOrder[b.day_of_week];
+  // --- ✅ LIST VIEW CHANGES BY MODE ---
+  const getSemesterDates = () => {
+    const sem = semesters.find((s) => s.name === selectedSemester);
+    if (!sem?.start_date || !sem?.end_date) return null;
+    const start = new Date(sem.start_date);
+    const end = new Date(sem.end_date);
+    if (isNaN(start) || isNaN(end)) return null;
+    return { start, end };
+  };
+
+  const startOfWeekMon = (date) => {
+    const d = new Date(date);
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() - day + 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const endOfWeekFri = (date) => {
+    const mon = startOfWeekMon(date);
+    const fri = new Date(mon);
+    fri.setDate(mon.getDate() + 4);
+    fri.setHours(23, 59, 59, 999);
+    return fri;
+  };
+
+  const startOfMonth = (date) => {
+    const d = new Date(date.getFullYear(), date.getMonth(), 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const endOfMonth = (date) => {
+    const d = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  };
+
+  const expandToOccurrences = (rangeStart, rangeEnd) => {
+    const occurrences = [];
+    const d = new Date(rangeStart);
+    d.setHours(0, 0, 0, 0);
+
+    while (d <= rangeEnd) {
+      const dayName = weekdayNames[d.getDay()];
+      if (daysOfWeek.includes(dayName)) {
+        const dayEntries = filteredData.filter((e) => e.day_of_week === dayName);
+        for (const e of dayEntries) {
+          occurrences.push({
+            ...e,
+            _date: new Date(d),
+            _dateStr: formatDateShort(d),
+          });
+        }
+      }
+      d.setDate(d.getDate() + 1);
+    }
+
+    occurrences.sort((a, b) => {
+      const da = a._date.getTime() - b._date.getTime();
+      if (da !== 0) return da;
       return a.start_time.localeCompare(b.start_time);
     });
+
+    return occurrences;
+  };
+
+  const getListOccurrencesForView = () => {
+    if (viewMode === "Day") {
+      const start = new Date(currentDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(currentDate);
+      end.setHours(23, 59, 59, 999);
+      return expandToOccurrences(start, end);
+    }
+    if (viewMode === "Week") {
+      const start = startOfWeekMon(currentDate);
+      const end = endOfWeekFri(currentDate);
+      return expandToOccurrences(start, end);
+    }
+    if (viewMode === "Month") {
+      const start = startOfMonth(currentDate);
+      const end = endOfMonth(currentDate);
+      return expandToOccurrences(start, end);
+    }
+    const sem = getSemesterDates();
+    if (sem) return expandToOccurrences(sem.start, sem.end);
+    return expandToOccurrences(startOfMonth(currentDate), endOfMonth(currentDate));
+  };
+
+  // --- 1) LIST VIEW (NOW CHANGES BY MODE) ---
+  const renderListView = () => {
+    const listRows = getListOccurrencesForView();
 
     return (
       <div style={{ marginTop: "20px", overflowX: "auto", boxShadow: "0 2px 5px rgba(0,0,0,0.05)", borderRadius: "4px" }}>
@@ -299,21 +357,25 @@ export default function TimetableManager({ currentUserRole }) {
               <th style={{ padding: "12px 10px", textAlign: "left" }}>To</th>
               <th style={{ padding: "12px 10px", textAlign: "left" }}>Module</th>
               <th style={{ padding: "12px 10px", textAlign: "left" }}>Lecturer(s)</th>
-              <th style={{ padding: "12px 10px", textAlign: "left" }}>Group</th>
+              <th style={{ padding: "12px 10px", textAlign: "left" }}>Groups</th>
               <th style={{ padding: "12px 10px", textAlign: "left" }}>Location</th>
               {!isStudent && <th style={{ padding: "12px 10px", textAlign: "center" }}>Action</th>}
             </tr>
           </thead>
+
           <tbody>
-            {sortedList.length === 0 ? (
-              <tr><td colSpan={isStudent ? "8" : "9"} style={{ padding: "20px", textAlign: "center", color: "#666" }}>No classes scheduled for this view.</td></tr>
+            {listRows.length === 0 ? (
+              <tr>
+                <td colSpan={isStudent ? 8 : 9} style={{ padding: "20px", textAlign: "center", color: "#666" }}>
+                  No classes scheduled for this view.
+                </td>
+              </tr>
             ) : (
-              sortedList.map((entry, idx) => {
-                const dateStr = getDateForDayOfWeek(entry.day_of_week);
-                const groupLine = Array.isArray(entry.group_names) ? entry.group_names.join(", ") : (filterGroup || "All");
+              listRows.map((entry, idx) => {
+                const groupLine = Array.isArray(entry.group_names) ? entry.group_names.join(", ") : (filterGroup || "—");
                 return (
-                  <tr key={entry.id} style={{ background: idx % 2 === 0 ? "#f1f3f5" : "white", borderBottom: "1px solid #dee2e6" }}>
-                    <td style={{ padding: "10px", color: "#495057" }}>{dateStr}</td>
+                  <tr key={`${entry.id}-${entry._dateStr}-${idx}`} style={{ background: idx % 2 === 0 ? "#f1f3f5" : "white", borderBottom: "1px solid #dee2e6" }}>
+                    <td style={{ padding: "10px", color: "#495057" }}>{entry._dateStr}</td>
                     <td style={{ padding: "10px", fontWeight: "600", color: "#343a40" }}>{entry.day_of_week}</td>
                     <td style={{ padding: "10px", color: "#495057" }}>{entry.start_time}</td>
                     <td style={{ padding: "10px", color: "#495057" }}>{entry.end_time}</td>
@@ -321,9 +383,16 @@ export default function TimetableManager({ currentUserRole }) {
                     <td style={{ padding: "10px", color: "#495057" }}>{entry.lecturer_name}</td>
                     <td style={{ padding: "10px", color: "#495057" }}>{groupLine}</td>
                     <td style={{ padding: "10px", color: "#495057" }}>{entry.room_name}</td>
+
                     {!isStudent && (
                       <td style={{ padding: "10px", textAlign: "center" }}>
-                        <button onClick={(e) => handleDelete(entry.id, e)} style={{ background: "none", border: "none", color: "#c92a2a", cursor: "pointer", fontSize: "1.1rem" }}>×</button>
+                        <button
+                          onClick={(e) => handleDelete(entry.id, e)}
+                          style={{ background: "none", border: "none", color: "#c92a2a", cursor: "pointer", fontSize: "1.1rem" }}
+                          title="Delete"
+                        >
+                          ×
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -336,7 +405,7 @@ export default function TimetableManager({ currentUserRole }) {
     );
   };
 
-  // --- 2) SEMESTER VIEW (UNCHANGED from before) ---
+  // --- 2) SEMESTER VIEW (AS BEFORE) ---
   const renderSemesterPlan = () => {
     let months = [];
     if (semesterType === "Winter") {
@@ -345,7 +414,7 @@ export default function TimetableManager({ currentUserRole }) {
         { name: "November", days: 30, startDay: 5 },
         { name: "December", days: 31, startDay: 0 },
         { name: "January", days: 31, startDay: 3 },
-        { name: "February", days: 28, startDay: 6 }
+        { name: "February", days: 28, startDay: 6 },
       ];
     } else {
       months = [
@@ -353,19 +422,50 @@ export default function TimetableManager({ currentUserRole }) {
         { name: "May", days: 31, startDay: 5 },
         { name: "June", days: 30, startDay: 1 },
         { name: "July", days: 31, startDay: 3 },
-        { name: "August", days: 31, startDay: 6 }
+        { name: "August", days: 31, startDay: 6 },
       ];
     }
+
     return (
-      <div style={{marginTop: "20px"}}>
-        <div style={{display:"flex", justifyContent:"center", marginBottom:"20px", gap:"10px"}}>
-          <button onClick={() => setSemesterType("Winter")} style={{padding: "8px 20px", borderRadius: "20px", border: "1px solid #2b4a8e", background: semesterType === "Winter" ? "#2b4a8e" : "white", color: semesterType === "Winter" ? "white" : "#2b4a8e", fontWeight: "bold", cursor: "pointer", transition: "all 0.2s"}}>❄️ Winter Semester (Oct - Feb)</button>
-          <button onClick={() => setSemesterType("Summer")} style={{padding: "8px 20px", borderRadius: "20px", border: "1px solid #2b4a8e", background: semesterType === "Summer" ? "#2b4a8e" : "white", color: semesterType === "Summer" ? "white" : "#2b4a8e", fontWeight: "bold", cursor: "pointer", transition: "all 0.2s"}}>☀️ Summer Semester (Apr - Aug)</button>
+      <div style={{ marginTop: "20px" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px", gap: "10px" }}>
+          <button
+            onClick={() => setSemesterType("Winter")}
+            style={{
+              padding: "8px 20px",
+              borderRadius: "20px",
+              border: "1px solid #2b4a8e",
+              background: semesterType === "Winter" ? "#2b4a8e" : "white",
+              color: semesterType === "Winter" ? "white" : "#2b4a8e",
+              fontWeight: "bold",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            ❄️ Winter Semester (Oct - Feb)
+          </button>
+          <button
+            onClick={() => setSemesterType("Summer")}
+            style={{
+              padding: "8px 20px",
+              borderRadius: "20px",
+              border: "1px solid #2b4a8e",
+              background: semesterType === "Summer" ? "#2b4a8e" : "white",
+              color: semesterType === "Summer" ? "white" : "#2b4a8e",
+              fontWeight: "bold",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            ☀️ Summer Semester (Apr - Aug)
+          </button>
         </div>
+
         <div style={{ display: "flex", gap: "20px", overflowX: "auto", paddingBottom: "20px" }}>
           {months.map((month, mIdx) => (
             <div key={mIdx} style={{ minWidth: "320px", background: "white", border: "1px solid #ddd", borderRadius: "8px", overflow: "hidden" }}>
               <div style={{ background: "#2b4a8e", color: "white", padding: "10px", textAlign: "center", fontWeight: "bold" }}>{month.name}</div>
+
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                 <thead>
                   <tr style={{ background: "#f1f3f5", borderBottom: "1px solid #ddd" }}>
@@ -374,35 +474,54 @@ export default function TimetableManager({ currentUserRole }) {
                     <th style={{ padding: "5px" }}>Module / Lecturer</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {Array.from({ length: month.days }, (_, i) => {
                     const dayNum = i + 1;
                     const dayOfWeekIndex = (month.startDay + i) % 7;
-                    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-                    const dayName = dayNames[dayOfWeekIndex];
+                    const dayName = weekdayNames[dayOfWeekIndex];
                     const isWeekend = dayName === "Saturday" || dayName === "Sunday";
-                    const dailyClasses = filteredData.filter(c => c.day_of_week === dayName);
+                    const dailyClasses = filteredData.filter((c) => c.day_of_week === dayName);
+
                     return (
                       <tr key={dayNum} style={{ background: isWeekend ? "#e9ecef" : "white", borderBottom: "1px solid #f1f3f5" }}>
-                        <td style={{ padding: "6px", textAlign: "center", fontWeight: "bold", color: "#666", borderRight: "1px solid #eee" }}>{dayNum < 10 ? `0${dayNum}` : dayNum}</td>
-                        <td style={{ padding: "6px", color: isWeekend ? "#adb5bd" : "#333", fontSize: "0.75rem", borderRight: "1px solid #eee" }}>{dayName.substring(0, 3)}</td>
+                        <td style={{ padding: "6px", textAlign: "center", fontWeight: "bold", color: "#666", borderRight: "1px solid #eee" }}>
+                          {dayNum < 10 ? `0${dayNum}` : dayNum}
+                        </td>
+                        <td style={{ padding: "6px", color: isWeekend ? "#adb5bd" : "#333", fontSize: "0.75rem", borderRight: "1px solid #eee" }}>
+                          {dayName.substring(0, 3)}
+                        </td>
                         <td style={{ padding: "4px" }}>
                           {dailyClasses.length > 0 ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                              {dailyClasses.map(cls => (
-                                <div key={cls.id} style={{ background: getColorForModule(cls.module_name).bg, borderLeft: `3px solid ${getColorForModule(cls.module_name).border}`, padding: "4px 6px", borderRadius: "3px", fontSize: "0.7rem" }}>
-                                  <div style={{marginBottom:"2px"}}><strong>{cls.start_time} - {cls.end_time}</strong> {cls.module_name}</div>
-                                  <div style={{fontSize:"0.65rem", opacity:0.8, fontStyle:"italic"}}>👨‍🏫 {cls.lecturer_name}</div>
+                              {dailyClasses.map((cls) => (
+                                <div
+                                  key={cls.id}
+                                  style={{
+                                    background: getColorForModule(cls.module_name).bg,
+                                    borderLeft: `3px solid ${getColorForModule(cls.module_name).border}`,
+                                    padding: "4px 6px",
+                                    borderRadius: "3px",
+                                    fontSize: "0.7rem",
+                                  }}
+                                >
+                                  <div style={{ marginBottom: "2px" }}>
+                                    <strong>{cls.start_time} - {cls.end_time}</strong> {cls.module_name}
+                                  </div>
+                                  <div style={{ fontSize: "0.65rem", opacity: 0.8, fontStyle: "italic" }}>👨‍🏫 {cls.lecturer_name}</div>
                                 </div>
                               ))}
                             </div>
-                          ) : (isWeekend ? <span style={{color:"#ccc"}}>-</span> : null)}
+                          ) : isWeekend ? (
+                            <span style={{ color: "#ccc" }}>-</span>
+                          ) : null}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+
             </div>
           ))}
         </div>
@@ -410,37 +529,71 @@ export default function TimetableManager({ currentUserRole }) {
     );
   };
 
-  // --- 3) MONTH VIEW (UNCHANGED classic calendar) ---
+  // --- 3) MONTH VIEW (AS BEFORE + NOW SHOWS lecturer + groups + room) ---
   const renderMonthView = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const firstDay = new Date(year, month, 1);
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+
     const calendarCells = [];
     for (let i = 0; i < startDayOfWeek; i++) {
-      calendarCells.push(<div key={`empty-${i}`} style={{background: "#f8f9fa", border: "1px solid #eee", minHeight: "100px"}}></div>);
+      calendarCells.push(<div key={`empty-${i}`} style={{ background: "#f8f9fa", border: "1px solid #eee", minHeight: "100px" }}></div>);
     }
+
     for (let d = 1; d <= daysInMonth; d++) {
       const currentDayDate = new Date(year, month, d);
       const dayName = getDayNameFromDate(currentDayDate);
-      const dailyClasses = filteredData.filter(entry => entry.day_of_week === dayName);
+      const dailyClasses = filteredData.filter((entry) => entry.day_of_week === dayName).sort((a,b)=>timeToMinutes(a.start_time)-timeToMinutes(b.start_time));
+
       calendarCells.push(
-        <div key={d} style={{ border: "1px solid #eee", minHeight: "100px", padding: "5px", background: "white" }}>
-          <div style={{ textAlign: "right", fontWeight: "bold", color: "#ccc", marginBottom: "5px" }}>{d}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-            {dailyClasses.map(cls => (
-              <div key={cls.id} style={{ fontSize: "0.65rem", padding: "2px 4px", borderRadius: "3px", background: getColorForModule(cls.module_name).bg, color: getColorForModule(cls.module_name).text, borderLeft: `3px solid ${getColorForModule(cls.module_name).border}`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {cls.start_time}-{cls.end_time} {cls.module_name}
-              </div>
-            ))}
+        <div key={d} style={{ border: "1px solid #eee", minHeight: "110px", padding: "6px", background: "white" }}>
+          <div style={{ textAlign: "right", fontWeight: "bold", color: "#ccc", marginBottom: "6px" }}>{d}</div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {dailyClasses.map((cls) => {
+              const groupLine = Array.isArray(cls.group_names) ? cls.group_names.join(", ") : null;
+              const colors = getColorForModule(cls.module_name);
+              return (
+                <div
+                  key={cls.id}
+                  style={{
+                    fontSize: "0.68rem",
+                    padding: "6px 8px",
+                    borderRadius: "8px",
+                    background: colors.bg,
+                    color: colors.text,
+                    borderLeft: `4px solid ${colors.border}`,
+                    overflow: "hidden",
+                  }}
+                  title={`${cls.start_time}-${cls.end_time} ${cls.module_name} | ${cls.lecturer_name}${groupLine ? " | " + groupLine : ""} | ${cls.room_name}`}
+                >
+                  <div style={{ fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {cls.start_time}-{cls.end_time} {cls.module_name}
+                  </div>
+                  <div style={{ opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    👨‍🏫 {cls.lecturer_name}
+                  </div>
+                  {groupLine && (
+                    <div style={{ opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      👥 {groupLine}
+                    </div>
+                  )}
+                  <div style={{ opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    📍 {cls.room_name}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       );
     }
+
     return (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "1px", background: "#ddd", border: "1px solid #ddd" }}>
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => (
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
           <div key={d} style={{ background: "#2b4a8e", color: "white", padding: "10px", textAlign: "center", fontWeight: "bold" }}>{d}</div>
         ))}
         {calendarCells}
@@ -448,7 +601,7 @@ export default function TimetableManager({ currentUserRole }) {
     );
   };
 
-  // --- ✅ NEW CLEAR DAY/WEEK CALENDAR VIEW (ONLY Day+Week changed) ---
+  // --- ✅ CLEAR DAY/WEEK CALENDAR VIEW (unchanged) ---
   const getDayEntries = (dayName) =>
     filteredData
       .filter((e) => e.day_of_week === dayName)
@@ -618,7 +771,7 @@ export default function TimetableManager({ currentUserRole }) {
         {isStudent ? "Student Schedule" : "Schedule Overview"}
       </h2>
 
-      {/* FILTROS (UNCHANGED) */}
+      {/* FILTROS */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "30px", marginBottom: "40px" }}>
         <div style={{ display: "flex", alignItems: "center" }}>
           <label style={{ marginRight: "10px", fontWeight: "bold" }}>Semester</label>
@@ -654,7 +807,7 @@ export default function TimetableManager({ currentUserRole }) {
         </div>
       </div>
 
-      {/* CONTROLES (UNCHANGED layout) */}
+      {/* CONTROLES */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px" }}>
         <div style={{ display: "flex", gap: "10px" }}>
           <button style={navButtonStyle("Day")} onClick={() => setViewMode("Day")}>Day</button>
@@ -695,20 +848,44 @@ export default function TimetableManager({ currentUserRole }) {
           )}
 
           {viewMode === "Semester" && !isListView && (
-            <div style={{ fontSize: "1.4rem", fontWeight: "700", color:"#2b4a8e" }}>{selectedSemester}</div>
+            <div style={{ fontSize: "1.4rem", fontWeight: "700", color: "#2b4a8e" }}>{selectedSemester}</div>
           )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ color: isListView ? "#2b4a8e" : "#6c757d", fontWeight: isListView ? "700" : "400", fontSize: "0.95rem" }}>List View</span>
-          <div onClick={() => setIsListView(!isListView)} style={{ width: "44px", height: "24px", background: isListView ? "#2b4a8e" : "#6c757d", borderRadius: "12px", position: "relative", cursor: "pointer", display: "flex", alignItems: "center", transition: "background 0.3s" }}>
-            <div style={{ width: "18px", height: "18px", background: "white", borderRadius: "50%", position: "absolute", left: isListView ? "22px" : "3px", right: isListView ? "3px" : "auto", boxShadow: "0 1px 2px rgba(0,0,0,0.2)", transition: "all 0.3s" }}></div>
+          <div
+            onClick={() => setIsListView(!isListView)}
+            style={{
+              width: "44px",
+              height: "24px",
+              background: isListView ? "#2b4a8e" : "#6c757d",
+              borderRadius: "12px",
+              position: "relative",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              transition: "background 0.3s",
+            }}
+          >
+            <div
+              style={{
+                width: "18px",
+                height: "18px",
+                background: "white",
+                borderRadius: "50%",
+                position: "absolute",
+                left: isListView ? "22px" : "3px",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                transition: "all 0.3s",
+              }}
+            ></div>
           </div>
           <span style={{ color: !isListView ? "#2b4a8e" : "#6c757d", fontWeight: !isListView ? "700" : "400", fontSize: "0.95rem" }}>Calendar View</span>
         </div>
       </div>
 
-      {/* ✅ MAIN RENDER: only Day/Week calendar changed */}
+      {/* MAIN */}
       {loading ? (
         <p>Loading...</p>
       ) : isListView ? (
@@ -723,7 +900,7 @@ export default function TimetableManager({ currentUserRole }) {
         renderAgendaWeek()
       )}
 
-      {/* MODAL (only used in Day/Week) */}
+      {/* MODAL (Day/Week create/edit) */}
       {showModal && !isStudent && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, backdropFilter: "blur(3px)" }}>
           <div style={{ background: "white", padding: "30px", borderRadius: "14px", width: "520px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)" }}>
@@ -812,6 +989,7 @@ export default function TimetableManager({ currentUserRole }) {
                 Save
               </button>
             </div>
+
           </div>
         </div>
       )}
