@@ -14,6 +14,7 @@ import SemesterManager from "./components/SemesterManager";
 import OfferedModules from "./components/OfferedModules";
 import TimetableManager from "./components/TimetableManager";
 import AnalyticsDashboard from "./components/Analytics";
+import PersonalTimetable from "./components/PersonalTimetable";
 
 function App() {
   const [activeTab, setActiveTab] = useState("programs");
@@ -53,19 +54,18 @@ function App() {
         return <ConstraintOverview {...commonProps} />;
       case "availabilities":
         return <AvailabilityOverview {...commonProps} />;
-
       case "semesters":
         return <SemesterManager {...commonProps} />;
       case "analytics":
         return <AnalyticsDashboard {...commonProps} />;
-
       case "semester-planning":
         return <OfferedModules {...commonProps} />;
-
-
       case "timetable":
-        return <TimetableManager {...commonProps} />;
 
+        return <TimetableManager {...commonProps} />;
+      case "my-schedule":
+
+        return <PersonalTimetable {...commonProps} />;
       default:
         return <ProgramOverview {...commonProps} />;
     }

@@ -7,13 +7,12 @@ import {
 } from "lucide-react";
 import api from "./api";
 import "./App.css";
-import { BarChart2 } from "lucide-react";
 
 const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrentUserRole }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const role = (currentUserRole || "").trim().toLowerCase();
   const isStudent = role === "student";
-  
+
   const NavLink = ({ id, icon: Icon, label, rolesAllowed = [] }) => {
     const normalizedAllowed = rolesAllowed.map(r => r.toLowerCase());
 
@@ -138,10 +137,12 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
 
           <SectionTitle title="Schedule & Planning" />
           <NavLink id="timetable" icon={CalendarDays} label="Timetable View" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
+
+          <NavLink id="my-schedule" icon={Calendar} label="My Teaching Schedule" rolesAllowed={["admin", "pm", "lecturer"]} />
+
           <NavLink id="semester-planning" icon={CalendarPlus} label="Semester Planning" rolesAllowed={["admin", "pm", "hosp", "lecturer"]} />
           <NavLink id="semesters" icon={Calendar} label="Semesters" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
           <NavLink id="analytics" icon={ChartAreaIcon} label="Analytics" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
-
 
           <SectionTitle title="Core Curriculum" />
           <NavLink id="programs" icon={GraduationCap} label="Study Programs" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
@@ -165,12 +166,10 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
         <div style={{ borderTop: '1px solid #334155', padding: isCollapsed ? '20px 0' : '20px', background: "#0f172a" }}>
 
           {isCollapsed ? (
-             // Collapsed View: Just an icon that expands sidebar if needed
              <div style={{ display: 'flex', justifyContent: 'center', cursor: 'pointer' }} title="Current Role">
                 <Shield size={24} color="#94a3b8" />
              </div>
           ) : (
-            // Expanded View: Full Dropdown
             <>
               <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
                 Switch Role:
@@ -195,7 +194,7 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
         <div className="page-header" style={{ padding: "20px 40px", background: "white", borderBottom: "1px solid #e2e8f0" }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h1 className="page-title" style={{ margin: 0, fontSize: "1.5rem", fontWeight: "700", color: "#1e293b" }}>
-              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1).replace('-', ' ')}
+              {activeTab === 'my-schedule' ? 'My Teaching Schedule' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1).replace('-', ' ')}
             </h1>
             <span style={{
                 background: '#eff6ff', color: '#3b82f6',
