@@ -126,27 +126,22 @@ export default function ModuleOverview({ onNavigate }) {
   const loadData = async () => {
     setLoading(true);
     try {
-     const [
-  modData,
-  progData,
-  specData,
-  roomData,
-  userData
-] = await Promise.all([
-  api.getModules(),
-  api.getPrograms(),
-  api.getSpecializations(),
-  api.getRooms(),
-  api.getCurrentUser()
-]);
+      // ✅ FIX: Catch individual errors so one failure doesn't wipe out the whole table
+      const [modData, progData, specData, roomData, userData] = await Promise.all([
+        api.getModules().catch(e => { console.error("Modules failed:", e); return []; }),
+        api.getPrograms().catch(e => { console.error("Programs failed:", e); return []; }),
+        api.getSpecializations().catch(e => { console.error("Specs failed:", e); return []; }),
+        api.getRooms().catch(e => { console.error("Rooms failed:", e); return []; }),
+        api.getCurrentUser().catch(e => { console.error("User failed:", e); return { role: "student" }; })
+      ]);
 
-setCurrentUser(userData);
-setRole(userData.role);
+      setCurrentUser(userData);
+      setRole(userData?.role || null);
 
-if (userData.role === "pm") {
-  const managed = await api.getManagedPrograms();
-  setManagedProgramIds(managed.map(p => p.id));
-}
+      if (userData?.role === "pm") {
+        const managed = await api.getManagedPrograms();
+        setManagedProgramIds(managed.map(p => p.id));
+      }
 
       setModules(Array.isArray(modData) ? modData : []);
       setPrograms(Array.isArray(progData) ? progData : []);
@@ -156,6 +151,7 @@ if (userData.role === "pm") {
         .map(r => r.type)
         .filter(t => t && !STANDARD_ROOM_TYPES.includes(t));
       setCustomRoomTypes([...new Set(existingCustom)].sort());
+
     } catch (e) {
       console.error(e);
     } finally {
