@@ -138,7 +138,6 @@ const Layout = ({ activeTab, setActiveTab, children, currentUserRole, setCurrent
           <SectionTitle title="Schedule & Planning" />
           <NavLink id="timetable" icon={CalendarDays} label="Timetable View" rolesAllowed={["admin", "pm", "hosp", "lecturer", "student"]} />
 
-          {/* ✅ NUEVO BOTÓN: MY TEACHING SCHEDULE (Oculto para estudiantes) */}
           <NavLink id="my-schedule" icon={Calendar} label="My Teaching Schedule" rolesAllowed={["admin", "pm", "lecturer"]} />
 
           <NavLink id="semester-planning" icon={CalendarPlus} label="Semester Planning" rolesAllowed={["admin", "pm", "hosp", "lecturer"]} />
