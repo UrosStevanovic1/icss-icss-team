@@ -11,6 +11,7 @@ module_specializations = Table(
     Column("module_code", String, ForeignKey("modules.module_code", ondelete="CASCADE"), primary_key=True),
     Column("specialization_id", Integer, ForeignKey("specializations.id", ondelete="CASCADE"), primary_key=True),
 )
+
 # Association Table for Many-to-Many relationship between Lecturers and Modules
 lecturer_modules = Table(
     "lecturer_modules",
@@ -39,7 +40,10 @@ class Domain(Base):
     __tablename__ = "domains"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(120), unique=True, nullable=False)
+
+    # ✅ add backref
     lecturers = relationship("Lecturer", secondary=lecturer_domains, back_populates="domains")
+
 
 class Lecturer(Base):
     __tablename__ = "lecturers"
@@ -53,18 +57,18 @@ class Lecturer(Base):
     phone = Column(String(50), nullable=True)
     location = Column(String(200), nullable=True)
     teaching_load = Column(String(100), nullable=True)
+
     domain_id = Column(Integer, ForeignKey("domains.id"), nullable=True)
     domain_rel = relationship("Domain")
 
-
     domains = relationship("Domain", secondary=lecturer_domains, back_populates="lecturers")
-
-    modules = relationship("Module", secondary=lecturer_modules, back_populates="modules")
+    modules = relationship("Module", secondary=lecturer_modules, back_populates="lecturers")
 
     @property
     def domain(self):
         # backward compatibility: still returns the single FK domain name if set
         return self.domain_rel.name if self.domain_rel else None
+
 
 class StudyProgram(Base):
     __tablename__ = "study_programs"
@@ -81,6 +85,7 @@ class StudyProgram(Base):
 
     head_lecturer = relationship("Lecturer")
 
+
 class Module(Base):
     __tablename__ = "modules"
     module_code = Column(String, primary_key=True, index=True)
@@ -95,6 +100,7 @@ class Module(Base):
     specializations = relationship("Specialization", secondary=module_specializations, back_populates="modules")
     lecturers = relationship("Lecturer", secondary=lecturer_modules, back_populates="modules")
 
+
 class Specialization(Base):
     __tablename__ = "specializations"
     id = Column(Integer, primary_key=True, index=True)
@@ -107,6 +113,7 @@ class Specialization(Base):
 
     modules = relationship("Module", secondary=module_specializations, back_populates="specializations")
 
+
 class Group(Base):
     __tablename__ = "groups"
     id = Column(Integer, primary_key=True, index=True)
@@ -116,6 +123,7 @@ class Group(Base):
     email = Column("Email", String(200), nullable=True)
     program = Column("Program", String, nullable=True)
     parent_group = Column("Parent_Group", String, nullable=True)
+
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -127,11 +135,13 @@ class Room(Base):
     equipment = Column("Equipment", String, nullable=True)
     location = Column(String(200), nullable=True)
 
+
 class LecturerAvailability(Base):
     __tablename__ = "lecturer_availabilities"
     id = Column(Integer, primary_key=True, index=True)
     lecturer_id = Column(Integer, ForeignKey("lecturers.ID", ondelete="CASCADE"), unique=True, nullable=False)
     schedule_data = Column(JSON, default={}, nullable=False)
+
 
 class SchedulerConstraint(Base):
     __tablename__ = "scheduler_constraints"
@@ -147,6 +157,7 @@ class SchedulerConstraint(Base):
     created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
 
+
 class Semester(Base):
     __tablename__ = "semesters"
     id = Column(Integer, primary_key=True, index=True)
@@ -154,6 +165,7 @@ class Semester(Base):
     acronym = Column(String, nullable=False)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
+
 
 class OfferedModule(Base):
     __tablename__ = "offered_modules"
@@ -170,6 +182,7 @@ class OfferedModule(Base):
 
     module = relationship("Module")
     lecturer = relationship("Lecturer")
+
 
 class ScheduleEntry(Base):
     __tablename__ = "schedule_entries"
