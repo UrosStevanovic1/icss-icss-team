@@ -94,6 +94,7 @@ export default function ModuleOverview({ onNavigate }) {
   const [role, setRole] = useState(null);
   const [managedProgramIds, setManagedProgramIds] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+
   // Filter States
   const [query, setQuery] = useState("");
   const [filterProgram, setFilterProgram] = useState("ALL");
@@ -126,27 +127,33 @@ export default function ModuleOverview({ onNavigate }) {
   const loadData = async () => {
     setLoading(true);
     try {
-     const [
-  modData,
-  progData,
-  specData,
-  roomData,
-  userData
-] = await Promise.all([
-  api.getModules(),
-  api.getPrograms(),
-  api.getSpecializations(),
-  api.getRooms(),
-  api.getCurrentUser()
-]);
+      const fallbackRole = localStorage.getItem("userRole") || "student";
+      const [modData, progData, specData, roomData, userData] = await Promise.all([
+        api.getModules().catch(() => []),
+        api.getPrograms().catch(() => []),
+        api.getSpecializations().catch(() => []),
+        api.getRooms().catch(() => []),
+        api.getCurrentUser().catch(() => ({ role: fallbackRole }))
+      ]);
 
-setCurrentUser(userData);
-setRole(userData.role);
+      setCurrentUser(userData);
 
-if (userData.role === "pm") {
-  const managed = await api.getManagedPrograms();
-  setManagedProgramIds(managed.map(p => p.id));
-}
+      // ✅ FIX: Force role to strictly be lowercase so it matches "admin" and "pm" safely
+      const rawRole = userData?.role || fallbackRole;
+      const userRole = rawRole.toLowerCase();
+      setRole(userRole);
+
+      if (userRole === "pm" || userRole === "hosp") {
+        try {
+          const managed = await api.getManagedPrograms();
+          if (Array.isArray(managed)) {
+            // ✅ FIX: Ensure all Managed Program IDs are strictly Numbers
+            setManagedProgramIds(managed.map(p => Number(p.id)));
+          }
+        } catch (e) {
+          console.error("Could not fetch managed programs", e);
+        }
+      }
 
       setModules(Array.isArray(modData) ? modData : []);
       setPrograms(Array.isArray(progData) ? progData : []);
@@ -156,6 +163,7 @@ if (userData.role === "pm") {
         .map(r => r.type)
         .filter(t => t && !STANDARD_ROOM_TYPES.includes(t));
       setCustomRoomTypes([...new Set(existingCustom)].sort());
+
     } catch (e) {
       console.error(e);
     } finally {
@@ -175,16 +183,13 @@ if (userData.role === "pm") {
     const q = query.trim().toLowerCase();
 
     return modules.filter(m => {
-      // 1. Search Query
       const matchesSearch = (m?.name || "").toLowerCase().includes(q) || (m?.module_code || "").toLowerCase().includes(q);
 
-      // 2. Program Filter (Removed GLOBAL option)
       let matchesProgram = true;
       if (filterProgram !== "ALL") {
         matchesProgram = String(m.program_id) === filterProgram;
       }
 
-      // 3. Assessment Filter
       let matchesAssessment = true;
       if (filterAssessment !== "ALL") {
         const ab = Array.isArray(m?.assessment_breakdown) ? m.assessment_breakdown : [];
@@ -195,7 +200,6 @@ if (userData.role === "pm") {
         }
       }
 
-      // 4. Room Type Filter
       const matchesRoom = filterRoomType === "ALL" || m.room_type === filterRoomType;
 
       return matchesSearch && matchesProgram && matchesAssessment && matchesRoom;
@@ -327,6 +331,11 @@ if (userData.role === "pm") {
       return false;
     }
 
+    if ((role === "pm" || role === "hosp") && !draft.program_id) {
+        alert("Project Managers and HOSPs MUST assign the module to a specific Study Program. You cannot create a Global module.");
+        return false;
+    }
+
     if (assessmentTotal !== 100) {
       alert(`Assessment weights must total 100%. Current: ${assessmentTotal}%`);
       return false;
@@ -401,17 +410,18 @@ if (userData.role === "pm") {
       alert("Error saving module.");
     }
   };
-const canManageModule = (module) => {
-  if (!role) return false;
 
-  if (role === "admin") return true;
+  const canManageModule = (module) => {
+    if (!role) return false;
+    if (role === "admin") return true;
 
-  if (role === "pm" && managedProgramIds.includes(module.program_id)) {
-    return true;
-  }
 
-  return false;
-};
+    if ((role === "pm" || role === "hosp") && managedProgramIds.includes(Number(module.program_id))) {
+      return true;
+    }
+    return false;
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.controlsBar}>
@@ -466,14 +476,14 @@ const canManageModule = (module) => {
           </select>
         </div>
 
-{(role === "admin" || role === "pm") && (
-  <button
-    style={{ ...styles.btn, ...styles.primaryBtn }}
-    onClick={openAdd}
-  >
-    + New Module
-  </button>
-)}
+      {(role === "admin" || role === "pm" || role === "hosp") && (
+        <button
+          style={{ ...styles.btn, ...styles.primaryBtn }}
+          onClick={openAdd}
+        >
+          + New Module
+        </button>
+      )}
      </div>
 
       <div style={styles.tableContainer}>
@@ -533,22 +543,22 @@ const canManageModule = (module) => {
                       <td style={{...styles.td, textAlign: "right"}}>
                         <div style={styles.actionContainer}>
                           {canManageModule(m) && (
-  <>
-    <button
-      style={{ ...styles.actionBtn, ...styles.editBtn }}
-      onClick={() => openEdit(m)}
-    >
-      Edit
-    </button>
+                            <>
+                              <button
+                                style={{ ...styles.actionBtn, ...styles.editBtn }}
+                                onClick={() => openEdit(m)}
+                              >
+                                Edit
+                              </button>
 
-    <button
-      style={{ ...styles.actionBtn, ...styles.delBtn }}
-      onClick={() => initiateDelete(m)}
-    >
-      Delete
-    </button>
-  </>
-)}
+                              <button
+                                style={{ ...styles.actionBtn, ...styles.delBtn }}
+                                onClick={() => initiateDelete(m)}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -21,8 +21,7 @@ class DomainCreate(DomainBase):
     pass
 class DomainResponse(DomainBase):
     id: int
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 # --- LECTURERS ---
 class LecturerBase(BaseModel):
@@ -39,8 +38,7 @@ class LecturerBase(BaseModel):
 class ModuleMini(BaseModel):
     module_code: str
     name: str
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 # ✅ NEW: accept domain_ids on create (multi)
 class LecturerCreate(LecturerBase):
@@ -75,8 +73,7 @@ class LecturerResponse(LecturerBase):
     domain: Optional[str] = None
 
     modules: List[ModuleMini] = []
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 
@@ -113,8 +110,7 @@ class StudyProgramUpdate(BaseModel):
 class StudyProgramResponse(StudyProgramBase):
     id: int
     head_lecturer: Optional[LecturerResponse] = None
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 # --- SPECIALIZATIONS ---
 class SpecializationBase(BaseModel):
@@ -138,8 +134,7 @@ class SpecializationUpdate(BaseModel):
 
 class SpecializationResponse(SpecializationBase):
     id: int
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 # --- MODULES ---
 class AssessmentPart(BaseModel):
@@ -174,8 +169,7 @@ class ModuleUpdate(BaseModel):
 class ModuleResponse(ModuleBase):
     assessment_breakdown: List[AssessmentPart] = []
     specializations: List[SpecializationResponse] = []
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 # --- GROUPS ---
 class GroupBase(BaseModel):
@@ -199,8 +193,7 @@ class GroupUpdate(BaseModel):
 
 class GroupResponse(GroupBase):
     id: int
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 # --- ROOMS ---
 class RoomBase(BaseModel):
@@ -224,8 +217,7 @@ class RoomUpdate(BaseModel):
 
 class RoomResponse(RoomBase):
     id: int
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 # --- AVAILABILITY ---
 class AvailabilityUpdate(BaseModel):
@@ -236,8 +228,7 @@ class AvailabilityResponse(BaseModel):
     id: int
     lecturer_id: int
     schedule_data: Any
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 # --- SCHEDULER CONSTRAINTS ---
 class SchedulerConstraintBase(BaseModel):
@@ -267,8 +258,7 @@ class SchedulerConstraintResponse(SchedulerConstraintBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 class SemesterBase(BaseModel):
     name: str
@@ -287,5 +277,4 @@ class SemesterUpdate(BaseModel):
 
 class SemesterResponse(SemesterBase):
     id: int
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
