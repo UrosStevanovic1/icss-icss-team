@@ -26,7 +26,6 @@ export default function TimetableManager({ currentUserRole }) {
 
   const [semesterType, setSemesterType] = useState("Winter");
 
-  // ✅ Modal entry now includes editable start/end + groups
   const [newEntry, setNewEntry] = useState({
     day: "",
     start_time: "",
@@ -38,7 +37,7 @@ export default function TimetableManager({ currentUserRole }) {
 
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
-  // ✅ visible timetable range
+  // timetable visible range
   const DAY_START = "08:00";
   const DAY_END = "20:00";
 
@@ -73,7 +72,6 @@ export default function TimetableManager({ currentUserRole }) {
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-  // ✅ 15-minute precision for Day view (so 08:15 works)
   const buildSlots = (startStr, endStr, stepMin) => {
     const start = timeToMinutes(startStr);
     const end = timeToMinutes(endStr);
@@ -82,18 +80,23 @@ export default function TimetableManager({ currentUserRole }) {
     return out;
   };
 
+  // 60-min labels on left, 15-min click targets in Day, 60-min click targets in Week
   const hourSlots = useMemo(() => buildSlots(DAY_START, DAY_END, 60), []);
   const daySlots15 = useMemo(() => buildSlots(DAY_START, DAY_END, 15), []);
+
   const isDay = viewMode === "Day";
-  const visibleDays = viewMode === "Week" ? daysOfWeek : [currentDate.toLocaleDateString("en-US", { weekday: "long" })];
+  const isWeek = viewMode === "Week";
+
+  const visibleDays = viewMode === "Week"
+    ? daysOfWeek
+    : [currentDate.toLocaleDateString("en-US", { weekday: "long" })];
 
   // --- DATE HELPERS ---
   const getWeekNumber = (d) => {
     d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    return weekNo;
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   };
 
   const formatDateShort = (date) =>
@@ -120,7 +123,11 @@ export default function TimetableManager({ currentUserRole }) {
     return formatDateShort(targetDate);
   };
 
-  // --- LOADERS ---
+  const displayDayName = currentDate.toLocaleDateString("en-US", { weekday: "long" });
+  const displayDateNum = formatDateShort(currentDate);
+  const displayMonthName = currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  // --- LOADING ---
   const loadSchedule = useCallback(async () => {
     if (!selectedSemester) return;
     setLoading(true);
@@ -151,8 +158,10 @@ export default function TimetableManager({ currentUserRole }) {
         const s = await api.getSemesters();
         setSemesters(s);
         if (s.length > 0) setSelectedSemester(s[0].name);
+
         const l = await api.getLecturers();
         setLecturers(l);
+
         const g = await api.getGroups();
         setGroups(g);
       } catch (e) {
@@ -168,17 +177,17 @@ export default function TimetableManager({ currentUserRole }) {
     }
   }, [selectedSemester, loadSchedule, loadDropdowns]);
 
-  // --- FILTERED DATA (includes groups) ---
+  // --- FILTERED DATA ---
   const filteredData = useMemo(() => {
     return scheduleData.filter((entry) => {
       if (filterLecturer && entry.lecturer_name !== filterLecturer) return false;
 
       if (filterGroup) {
         const groupNames =
-          entry.group_names || (Array.isArray(entry.groups) ? entry.groups.map((g) => g.name) : []);
+          entry.group_names ||
+          (Array.isArray(entry.groups) ? entry.groups.map((g) => g.name ?? g.Name) : []);
         if (!groupNames.includes(filterGroup)) return false;
       }
-
       return true;
     });
   }, [scheduleData, filterLecturer, filterGroup]);
@@ -194,12 +203,8 @@ export default function TimetableManager({ currentUserRole }) {
     setCurrentDate(newDate);
   };
 
-  const displayDayName = currentDate.toLocaleDateString("en-US", { weekday: "long" });
-  const displayDateNum = formatDateShort(currentDate);
-  const displayMonthName = currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-
-  // --- BUSY CHECK (only Day+Month + selected lecturer) ---
-  const isLecturerBusyAt = (day, slotStartTime, slotMinutes = 30) => {
+  // --- BUSY CHECK (only Day+Month, selected lecturer) ---
+  const isLecturerBusyAt = (day, slotStartTime, slotMinutes) => {
     if (!(viewMode === "Day" || viewMode === "Month")) return false;
     if (!filterLecturer) return false;
 
@@ -211,27 +216,18 @@ export default function TimetableManager({ currentUserRole }) {
     return lecturerEntries.some((e) => {
       const s = timeToMinutes(e.start_time);
       const en = timeToMinutes(e.end_time);
-      return slotStart < en && slotEnd > s; // overlap
+      return slotStart < en && slotEnd > s;
     });
   };
 
   // --- CLICK / SAVE / DELETE ---
-  const handleCellClick = (day, clickedTime) => {
-    if (isStudent) return;
-
-    // ✅ block only for selected lecturer in Day+Month
-    if (isLecturerBusyAt(day, clickedTime, 30)) {
-      alert("Selected lecturer is busy at this time.");
-      return;
-    }
-
-    // default end = +60min
-    const startM = timeToMinutes(clickedTime);
-    const endM = clamp(startM + 60, timeToMinutes(DAY_START), timeToMinutes(DAY_END));
+  const openModalAt = (day, startTime) => {
+    const s = timeToMinutes(startTime);
+    const e = clamp(s + 60, timeToMinutes(DAY_START), timeToMinutes(DAY_END));
     setNewEntry({
       day,
-      start_time: clickedTime,
-      end_time: minutesToTime(endM),
+      start_time: startTime,
+      end_time: minutesToTime(e),
       offered_module_id: "",
       room_id: "",
       group_ids: [],
@@ -239,8 +235,22 @@ export default function TimetableManager({ currentUserRole }) {
     setShowModal(true);
   };
 
+  const handleCellClick = (day, time, slotMinutes) => {
+    if (isStudent) return;
+
+    // ✅ blocking only in Day/Month, not in Week
+    if (viewMode === "Day" || viewMode === "Month") {
+      if (isLecturerBusyAt(day, time, slotMinutes)) {
+        alert("Selected lecturer is busy at this time.");
+        return;
+      }
+    }
+    openModalAt(day, time);
+  };
+
   const handleSave = async () => {
-    if (!newEntry.offered_module_id || !newEntry.room_id) return alert("Select module and room");
+    if (!newEntry.offered_module_id) return alert("Select module");
+    if (!newEntry.room_id) return alert("Select room");
     if (!newEntry.start_time) return alert("Select start time");
     if (!newEntry.end_time) return alert("Select end time");
     if (!newEntry.group_ids || newEntry.group_ids.length === 0) return alert("Select at least 1 group");
@@ -251,8 +261,8 @@ export default function TimetableManager({ currentUserRole }) {
 
     try {
       await api.createScheduleEntry({
-        offered_module_id: newEntry.offered_module_id,
-        room_id: newEntry.room_id,
+        offered_module_id: Number(newEntry.offered_module_id),
+        room_id: Number(newEntry.room_id),
         day_of_week: newEntry.day,
         start_time: newEntry.start_time,
         end_time: newEntry.end_time,
@@ -278,23 +288,58 @@ export default function TimetableManager({ currentUserRole }) {
     }
   };
 
-  // --- DURATION RENDERING (absolute blocks) ---
-  // px-per-minute: Week view slightly taller; Day view supports 15-min lines
-  const PX_PER_MIN = isDay ? 2.0 : 1.6;
+  // --- OVERLAP LAYOUT (LANES) ---
+  // returns items with { lane, laneCount } so we can set left/width
+  const computeLanesForDay = (events) => {
+    const items = events
+      .map((ev) => ({
+        ev,
+        startM: timeToMinutes(ev.start_time),
+        endM: timeToMinutes(ev.end_time),
+      }))
+      .sort((a, b) => a.startM - b.startM || a.endM - b.endM);
 
-  const timelineHeightPx = useMemo(() => {
-    const totalMins = timeToMinutes(DAY_END) - timeToMinutes(DAY_START);
-    return totalMins * PX_PER_MIN;
-  }, [PX_PER_MIN]);
+    const lanesEnd = []; // end time per lane
+    const placed = [];
+
+    for (const item of items) {
+      let laneIndex = lanesEnd.findIndex((end) => end <= item.startM);
+      if (laneIndex === -1) {
+        laneIndex = lanesEnd.length;
+        lanesEnd.push(item.endM);
+      } else {
+        lanesEnd[laneIndex] = item.endM;
+      }
+      placed.push({ ...item, lane: laneIndex });
+    }
+
+    // For each item compute how many lanes overlap with it (max concurrent in its overlap window)
+    for (const item of placed) {
+      const overlapping = placed.filter((x) => x.startM < item.endM && x.endM > item.startM);
+      const laneCount = Math.max(...overlapping.map((x) => x.lane)) + 1;
+      item.laneCount = laneCount;
+    }
+
+    return placed;
+  };
+
+  // --- DURATION RENDERING ---
+  const PX_PER_MIN = isDay ? 2.0 : 1.6;
+  const timelineHeightPx = useMemo(() => (timeToMinutes(DAY_END) - timeToMinutes(DAY_START)) * PX_PER_MIN, [PX_PER_MIN]);
 
   const getEventsForDay = (dayName) => filteredData.filter((e) => e.day_of_week === dayName);
 
   const renderDayColumn = (dayName) => {
-    const events = getEventsForDay(dayName);
+    const rawEvents = getEventsForDay(dayName);
+    const placed = computeLanesForDay(rawEvents);
+
+    // click targets:
+    const clickSlots = isDay ? daySlots15 : hourSlots;
+    const clickStep = isDay ? 15 : 60;
 
     return (
       <div style={{ position: "relative", height: timelineHeightPx, background: "white" }}>
-        {/* grid lines */}
+        {/* subtle grid */}
         <div
           style={{
             position: "absolute",
@@ -306,22 +351,22 @@ export default function TimetableManager({ currentUserRole }) {
           }}
         />
 
-        {/* clickable overlay (Day only supports 15min clicking) */}
-        {!isStudent && viewMode === "Day" && (
+        {/* ✅ clickable overlay in Day AND Week */}
+        {!isStudent && (isDay || isWeek) && (
           <div style={{ position: "absolute", inset: 0 }}>
-            {daySlots15.map((t) => {
-              const busy = isLecturerBusyAt(dayName, t, 15);
+            {clickSlots.map((t) => {
+              const busy = (viewMode === "Day" || viewMode === "Month") ? isLecturerBusyAt(dayName, t, clickStep) : false;
               const top = (timeToMinutes(t) - timeToMinutes(DAY_START)) * PX_PER_MIN;
               return (
                 <div
                   key={t}
-                  onClick={() => !busy && handleCellClick(dayName, t)}
+                  onClick={() => !busy && handleCellClick(dayName, t, clickStep)}
                   style={{
                     position: "absolute",
                     left: 0,
                     right: 0,
                     top,
-                    height: 15 * PX_PER_MIN,
+                    height: clickStep * PX_PER_MIN,
                     cursor: busy ? "not-allowed" : "pointer",
                     background: busy ? "rgba(0,0,0,0.03)" : "transparent",
                   }}
@@ -332,12 +377,14 @@ export default function TimetableManager({ currentUserRole }) {
           </div>
         )}
 
-        {/* events */}
-        {events.map((ev) => {
-          const startM = clamp(timeToMinutes(ev.start_time), timeToMinutes(DAY_START), timeToMinutes(DAY_END));
-          const endM = clamp(timeToMinutes(ev.end_time), timeToMinutes(DAY_START), timeToMinutes(DAY_END));
+        {/* events with lane positioning */}
+        {placed.map((item) => {
+          const ev = item.ev;
+          const startM = clamp(item.startM, timeToMinutes(DAY_START), timeToMinutes(DAY_END));
+          const endM = clamp(item.endM, timeToMinutes(DAY_START), timeToMinutes(DAY_END));
+
           const top = (startM - timeToMinutes(DAY_START)) * PX_PER_MIN;
-          const height = Math.max(24, (endM - startM) * PX_PER_MIN);
+          const height = Math.max(26, (endM - startM) * PX_PER_MIN);
 
           const colors = getColorForModule(ev.module_name);
           const groupLine =
@@ -345,15 +392,23 @@ export default function TimetableManager({ currentUserRole }) {
               ? ev.group_names.join(", ")
               : null;
 
+          const laneCount = Math.max(1, item.laneCount || 1);
+          const lane = item.lane || 0;
+
+          // widths (gaps so it looks clean)
+          const gap = 10;
+          const totalGap = gap * (laneCount + 1);
+          const wPct = 100 / laneCount;
+
           return (
             <div
               key={ev.id}
               style={{
                 position: "absolute",
-                left: "8px",
-                right: "8px",
                 top,
                 height,
+                left: `calc(${wPct * lane}% + ${gap}px)`,
+                width: `calc(${wPct}% - ${totalGap / laneCount}px)`,
                 background: colors.bg,
                 borderLeft: `6px solid ${colors.border}`,
                 borderRadius: "10px",
@@ -419,11 +474,11 @@ export default function TimetableManager({ currentUserRole }) {
     );
   };
 
-  // --- LIST VIEW (keeps your table but with groups + time range) ---
+  // --- LIST VIEW ---
   const renderListView = () => {
-    const sortedList = [...filteredData].sort((a, b) => {
-      const dayOrder = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5 };
-      if (dayOrder[a.day_of_week] !== dayOrder[b.day_of_week]) return dayOrder[a.day_of_week] - dayOrder[b.day_of_week];
+    const sorted = [...filteredData].sort((a, b) => {
+      const order = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5 };
+      if (order[a.day_of_week] !== order[b.day_of_week]) return order[a.day_of_week] - order[b.day_of_week];
       return a.start_time.localeCompare(b.start_time);
     });
 
@@ -432,43 +487,39 @@ export default function TimetableManager({ currentUserRole }) {
         <table style={{ width: "100%", borderCollapse: "collapse", background: "white" }}>
           <thead>
             <tr style={{ background: "#f8f9fa", borderBottom: "2px solid #dee2e6" }}>
-              <th style={{ padding: "14px 16px", textAlign: "left", color: "#495057", fontSize: "1rem" }}>Date</th>
-              <th style={{ padding: "14px 16px", textAlign: "left", color: "#495057", fontSize: "1rem" }}>Day</th>
-              <th style={{ padding: "14px 16px", textAlign: "left", color: "#495057", fontSize: "1rem" }}>Time</th>
-              <th style={{ padding: "14px 16px", textAlign: "left", color: "#495057", fontSize: "1rem" }}>Module</th>
-              <th style={{ padding: "14px 16px", textAlign: "left", color: "#495057", fontSize: "1rem" }}>Lecturer</th>
-              <th style={{ padding: "14px 16px", textAlign: "left", color: "#495057", fontSize: "1rem" }}>Groups</th>
-              <th style={{ padding: "14px 16px", textAlign: "left", color: "#495057", fontSize: "1rem" }}>Room</th>
-              {!isStudent && <th style={{ padding: "14px 16px", textAlign: "center", color: "#495057", fontSize: "1rem" }}>Action</th>}
+              <th style={{ padding: "14px 16px", textAlign: "left" }}>Date</th>
+              <th style={{ padding: "14px 16px", textAlign: "left" }}>Day</th>
+              <th style={{ padding: "14px 16px", textAlign: "left" }}>Time</th>
+              <th style={{ padding: "14px 16px", textAlign: "left" }}>Module</th>
+              <th style={{ padding: "14px 16px", textAlign: "left" }}>Lecturer</th>
+              <th style={{ padding: "14px 16px", textAlign: "left" }}>Groups</th>
+              <th style={{ padding: "14px 16px", textAlign: "left" }}>Room</th>
+              {!isStudent && <th style={{ padding: "14px 16px", textAlign: "center" }}>Action</th>}
             </tr>
           </thead>
           <tbody>
-            {sortedList.length === 0 ? (
+            {sorted.length === 0 ? (
               <tr>
                 <td colSpan={isStudent ? 7 : 8} style={{ padding: "20px", textAlign: "center", color: "#999" }}>
                   No classes scheduled yet.
                 </td>
               </tr>
             ) : (
-              sortedList.map((entry, idx) => {
-                const dateStr = getDateForDayOfWeek(entry.day_of_week);
-                const groupLine =
-                  entry.group_names && Array.isArray(entry.group_names) && entry.group_names.length > 0
-                    ? entry.group_names.join(", ")
-                    : filterGroup || "All";
-
+              sorted.map((e, idx) => {
+                const dateStr = getDateForDayOfWeek(e.day_of_week);
+                const groupLine = Array.isArray(e.group_names) ? e.group_names.join(", ") : (filterGroup || "All");
                 return (
-                  <tr key={entry.id} style={{ borderBottom: "1px solid #f1f3f5", background: idx % 2 === 0 ? "white" : "#fcfcfc" }}>
-                    <td style={{ padding: "14px 16px", color: "#495057" }}>{dateStr}</td>
-                    <td style={{ padding: "14px 16px", fontWeight: 900, color: "#2b4a8e" }}>{entry.day_of_week}</td>
-                    <td style={{ padding: "14px 16px" }}>{entry.start_time} - {entry.end_time}</td>
-                    <td style={{ padding: "14px 16px", fontWeight: 800 }}>{entry.module_name}</td>
-                    <td style={{ padding: "14px 16px" }}>{entry.lecturer_name}</td>
+                  <tr key={e.id} style={{ borderBottom: "1px solid #f1f3f5", background: idx % 2 === 0 ? "white" : "#fcfcfc" }}>
+                    <td style={{ padding: "14px 16px" }}>{dateStr}</td>
+                    <td style={{ padding: "14px 16px", fontWeight: 900, color: "#2b4a8e" }}>{e.day_of_week}</td>
+                    <td style={{ padding: "14px 16px" }}>{e.start_time} - {e.end_time}</td>
+                    <td style={{ padding: "14px 16px", fontWeight: 800 }}>{e.module_name}</td>
+                    <td style={{ padding: "14px 16px" }}>{e.lecturer_name}</td>
                     <td style={{ padding: "14px 16px" }}>{groupLine}</td>
-                    <td style={{ padding: "14px 16px" }}>📍 {entry.room_name}</td>
+                    <td style={{ padding: "14px 16px" }}>📍 {e.room_name}</td>
                     {!isStudent && (
                       <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                        <button onClick={(e) => handleDelete(entry.id, e)} style={{ background: "none", border: "none", color: "#c92a2a", cursor: "pointer", fontSize: "1.2rem" }}>
+                        <button onClick={(ev) => handleDelete(e.id, ev)} style={{ background: "none", border: "none", color: "#c92a2a", cursor: "pointer", fontSize: "1.2rem" }}>
                           ×
                         </button>
                       </td>
@@ -483,7 +534,7 @@ export default function TimetableManager({ currentUserRole }) {
     );
   };
 
-  // --- SEMESTER VIEW (keeps your semester plan but with end_time shown) ---
+  // --- SEMESTER VIEW (keep your previous layout, shortened here) ---
   const renderSemesterPlan = () => {
     let months = [];
     if (semesterType === "Winter") {
@@ -517,13 +568,10 @@ export default function TimetableManager({ currentUserRole }) {
               color: semesterType === "Winter" ? "white" : "#2b4a8e",
               fontWeight: "800",
               cursor: "pointer",
-              transition: "all 0.2s",
-              fontSize: "0.95rem",
             }}
           >
             ❄️ Winter Semester (Oct - Feb)
           </button>
-
           <button
             onClick={() => setSemesterType("Summer")}
             style={{
@@ -534,8 +582,6 @@ export default function TimetableManager({ currentUserRole }) {
               color: semesterType === "Summer" ? "white" : "#2b4a8e",
               fontWeight: "800",
               cursor: "pointer",
-              transition: "all 0.2s",
-              fontSize: "0.95rem",
             }}
           >
             ☀️ Summer Semester (Apr - Aug)
@@ -564,20 +610,21 @@ export default function TimetableManager({ currentUserRole }) {
                     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
                     const dayName = dayNames[dayOfWeekIndex];
                     const isWeekend = dayName === "Saturday" || dayName === "Sunday";
-                    const dailyClasses = filteredData.filter((c) => c.day_of_week === dayName);
+
+                    const daily = filteredData.filter((c) => c.day_of_week === dayName);
 
                     return (
                       <tr key={dayNum} style={{ background: isWeekend ? "#e9ecef" : "white", borderBottom: "1px solid #f1f3f5" }}>
                         <td style={{ padding: "7px", textAlign: "center", fontWeight: "800", color: "#666", borderRight: "1px solid #eee" }}>
                           {dayNum < 10 ? `0${dayNum}` : dayNum}
                         </td>
-                        <td style={{ padding: "7px", color: isWeekend ? "#adb5bd" : "#333", fontSize: "0.8rem", borderRight: "1px solid #eee", fontWeight: 700 }}>
+                        <td style={{ padding: "7px", color: isWeekend ? "#adb5bd" : "#333", borderRight: "1px solid #eee", fontWeight: 700 }}>
                           {dayName.substring(0, 3)}
                         </td>
                         <td style={{ padding: "6px" }}>
-                          {dailyClasses.length > 0 ? (
+                          {daily.length > 0 ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                              {dailyClasses.map((cls) => (
+                              {daily.map((cls) => (
                                 <div
                                   key={cls.id}
                                   style={{
@@ -589,10 +636,7 @@ export default function TimetableManager({ currentUserRole }) {
                                   }}
                                 >
                                   <div style={{ marginBottom: "3px" }}>
-                                    <strong>
-                                      {cls.start_time} - {cls.end_time}
-                                    </strong>{" "}
-                                    {cls.module_name}
+                                    <strong>{cls.start_time} - {cls.end_time}</strong> {cls.module_name}
                                   </div>
                                   <div style={{ fontSize: "0.72rem", opacity: 0.8, fontStyle: "italic" }}>👨‍🏫 {cls.lecturer_name}</div>
                                 </div>
@@ -614,7 +658,7 @@ export default function TimetableManager({ currentUserRole }) {
     );
   };
 
-  // --- MONTH VIEW (keeps simple, shows start-end in tooltip) ---
+  // --- MONTH VIEW (unchanged, simple) ---
   const renderMonthView = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -622,21 +666,21 @@ export default function TimetableManager({ currentUserRole }) {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
 
-    const calendarCells = [];
+    const cells = [];
     for (let i = 0; i < startDayOfWeek; i++) {
-      calendarCells.push(<div key={`empty-${i}`} style={{ background: "#f8f9fa", border: "1px solid #eee", minHeight: "110px" }} />);
+      cells.push(<div key={`empty-${i}`} style={{ background: "#f8f9fa", border: "1px solid #eee", minHeight: "110px" }} />);
     }
 
     for (let d = 1; d <= daysInMonth; d++) {
-      const currentDayDate = new Date(year, month, d);
-      const dayName = currentDayDate.toLocaleDateString("en-US", { weekday: "long" });
-      const dailyClasses = filteredData.filter((entry) => entry.day_of_week === dayName);
+      const dayDate = new Date(year, month, d);
+      const dayName = dayDate.toLocaleDateString("en-US", { weekday: "long" });
+      const daily = filteredData.filter((entry) => entry.day_of_week === dayName);
 
-      calendarCells.push(
+      cells.push(
         <div key={d} style={{ border: "1px solid #eee", minHeight: "110px", padding: "8px", background: "white" }}>
           <div style={{ textAlign: "right", fontWeight: "800", color: "#ccc", marginBottom: "6px" }}>{d}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            {dailyClasses.map((cls) => (
+            {daily.map((cls) => (
               <div
                 key={cls.id}
                 style={{
@@ -668,19 +712,18 @@ export default function TimetableManager({ currentUserRole }) {
             {d}
           </div>
         ))}
-        {calendarCells}
+        {cells}
       </div>
     );
   };
 
-  // --- WEEK/DAY GRID (duration blocks) ---
+  // --- WEEK/DAY GRID ---
   const renderTimelineGrid = () => {
     const leftWidth = 90;
 
     return (
       <div style={{ borderTop: "1px solid #e9ecef", overflowX: "auto" }}>
-        <div style={{ minWidth: "1000px" }}>
-          {/* headers */}
+        <div style={{ minWidth: "1100px" }}>
           <div style={{ display: "grid", gridTemplateColumns: `${leftWidth}px repeat(${visibleDays.length}, 1fr)` }}>
             <div style={{ borderRight: "1px solid #e9ecef" }} />
             {visibleDays.map((day) => (
@@ -693,9 +736,7 @@ export default function TimetableManager({ currentUserRole }) {
             ))}
           </div>
 
-          {/* body */}
           <div style={{ display: "grid", gridTemplateColumns: `${leftWidth}px repeat(${visibleDays.length}, 1fr)` }}>
-            {/* time column */}
             <div style={{ borderRight: "1px solid #e9ecef" }}>
               {hourSlots.map((t) => (
                 <div key={t} style={{ height: 60 * PX_PER_MIN, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "10px", fontWeight: 900, color: "#343a40" }}>
@@ -704,7 +745,6 @@ export default function TimetableManager({ currentUserRole }) {
               ))}
             </div>
 
-            {/* day columns */}
             {visibleDays.map((day) => (
               <div key={day} style={{ borderRight: "1px solid #f1f3f5" }}>
                 {renderDayColumn(day)}
@@ -715,6 +755,15 @@ export default function TimetableManager({ currentUserRole }) {
       </div>
     );
   };
+
+  // --- MODAL DROPDOWN FIELD NORMALIZERS (fix DB mismatches) ---
+  const getModuleLabel = (m) => {
+    const modName = m.module_name ?? m.moduleName ?? m.name ?? m.module?.name ?? m.module?.Name ?? "Unnamed module";
+    const lecName = m.lecturer_name ?? m.lecturerName ?? m.lecturer?.name ?? m.lecturer?.full_name ?? "";
+    return lecName ? `${modName} (${lecName})` : modName;
+  };
+
+  const getGroupName = (g) => g.name ?? g.Name ?? g.group_name ?? g.groupName ?? "Unnamed group";
 
   // --- STYLES ---
   const navButtonStyle = (mode) => ({
@@ -764,8 +813,8 @@ export default function TimetableManager({ currentUserRole }) {
           <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)} style={filterSelectStyle}>
             <option value="">All Groups</option>
             {groups.map((g) => (
-              <option key={g.id} value={g.name}>
-                {g.name}
+              <option key={g.id} value={getGroupName(g)}>
+                {getGroupName(g)}
               </option>
             ))}
           </select>
@@ -880,17 +929,13 @@ export default function TimetableManager({ currentUserRole }) {
 
       {/* MODAL */}
       {showModal && !isStudent && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, backdropFilter: "blur(3px)" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, backdropFilter: "blur(3px)" }}>
           <div style={{ background: "white", padding: "30px", borderRadius: "14px", width: "520px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)" }}>
-            <h3 style={{ marginTop: 0, marginBottom: "16px", color: "#343a40", fontSize: "1.4rem", fontWeight: "900" }}>
-              Schedule Class
-            </h3>
-
+            <h3 style={{ marginTop: 0, marginBottom: "16px", color: "#343a40", fontSize: "1.4rem", fontWeight: "900" }}>Schedule Class</h3>
             <p style={{ marginBottom: "18px", color: "#6c757d", fontSize: "1.05rem" }}>
               <strong>{newEntry.day}</strong>
             </p>
 
-            {/* ✅ Start time editable (supports 08:15) */}
             <label style={{ display: "block", marginBottom: "6px", fontWeight: "900" }}>Start time</label>
             <input
               type="time"
@@ -917,8 +962,8 @@ export default function TimetableManager({ currentUserRole }) {
             >
               <option value="">-- Select Module --</option>
               {offeredModules.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.module_name} ({m.lecturer_name})
+                <option key={m.id} value={String(m.id)}>
+                  {getModuleLabel(m)}
                 </option>
               ))}
             </select>
@@ -931,13 +976,12 @@ export default function TimetableManager({ currentUserRole }) {
             >
               <option value="">-- Select Room --</option>
               {rooms.map((r) => (
-                <option key={r.id} value={r.id}>
+                <option key={r.id} value={String(r.id)}>
                   {r.name}
                 </option>
               ))}
             </select>
 
-            {/* ✅ Groups multi-select */}
             <label style={{ display: "block", marginBottom: "6px", fontWeight: "900" }}>Groups</label>
             <select
               multiple
@@ -950,22 +994,16 @@ export default function TimetableManager({ currentUserRole }) {
             >
               {groups.map((g) => (
                 <option key={g.id} value={String(g.id)}>
-                  {g.name}
+                  {getGroupName(g)}
                 </option>
               ))}
             </select>
 
             <div style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-              <button
-                onClick={() => setShowModal(false)}
-                style={{ padding: "12px 22px", background: "white", border: "1px solid #ced4da", borderRadius: "8px", cursor: "pointer", fontWeight: "800" }}
-              >
+              <button onClick={() => setShowModal(false)} style={{ padding: "12px 22px", background: "white", border: "1px solid #ced4da", borderRadius: "8px", cursor: "pointer", fontWeight: "800" }}>
                 Cancel
               </button>
-              <button
-                onClick={handleSave}
-                style={{ padding: "12px 26px", background: "#2b4a8e", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "900" }}
-              >
+              <button onClick={handleSave} style={{ padding: "12px 26px", background: "#2b4a8e", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "900" }}>
                 Save Class
               </button>
             </div>
