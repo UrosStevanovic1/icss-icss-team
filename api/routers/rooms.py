@@ -9,19 +9,13 @@ from ..permissions import require_admin_or_pm
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
-
-# ✅ Public read (no auth) so timetable can load rooms
 @router.get("/", response_model=List[schemas.RoomResponse])
-def read_rooms(db: Session = Depends(get_db)):
+def read_rooms(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     return db.query(models.Room).all()
 
-
 @router.post("/", response_model=schemas.RoomResponse)
-def create_room(
-    p: schemas.RoomCreate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
+def create_room(p: schemas.RoomCreate, db: Session = Depends(get_db),
+                current_user: models.User = Depends(auth.get_current_user)):
     require_admin_or_pm(current_user)
     row = models.Room(**p.model_dump())
     db.add(row)
@@ -29,14 +23,9 @@ def create_room(
     db.refresh(row)
     return row
 
-
 @router.put("/{id}", response_model=schemas.RoomResponse)
-def update_room(
-    id: int,
-    p: schemas.RoomUpdate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
+def update_room(id: int, p: schemas.RoomUpdate, db: Session = Depends(get_db),
+                current_user: models.User = Depends(auth.get_current_user)):
     require_admin_or_pm(current_user)
     row = db.query(models.Room).filter(models.Room.id == id).first()
     if not row:
@@ -50,13 +39,9 @@ def update_room(
     db.refresh(row)
     return row
 
-
 @router.delete("/{id}")
-def delete_room(
-    id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
+def delete_room(id: int, db: Session = Depends(get_db),
+                current_user: models.User = Depends(auth.get_current_user)):
     require_admin_or_pm(current_user)
     row = db.query(models.Room).filter(models.Room.id == id).first()
     if row:

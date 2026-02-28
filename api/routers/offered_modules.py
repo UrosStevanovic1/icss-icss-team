@@ -4,7 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from ..database import get_db
-from .. import models
+from .. import models, auth
 
 router = APIRouter(prefix="/offered-modules", tags=["offered-modules"])
 
@@ -16,6 +16,7 @@ class OfferCreate(BaseModel):
     status: str = "Confirmed"
 
 
+# ✅ NEW: update payload (only what we need for assignee dropdown)
 class OfferUpdate(BaseModel):
     lecturer_id: Optional[int] = None
 
@@ -33,7 +34,11 @@ class OfferResponse(BaseModel):
 
 
 @router.get("/", response_model=List[OfferResponse])
-def get_offers(semester: Optional[str] = None, db: Session = Depends(get_db)):
+def get_offers(
+    semester: str = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     query = db.query(models.OfferedModule).options(
         joinedload(models.OfferedModule.module),
         joinedload(models.OfferedModule.lecturer),
@@ -59,15 +64,17 @@ def get_offers(semester: Optional[str] = None, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=OfferResponse)
-def create_offer(offer: OfferCreate, db: Session = Depends(get_db)):
+def create_offer(
+    offer: OfferCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     exists = (
         db.query(models.OfferedModule)
-        .filter(
-            models.OfferedModule.module_code == offer.module_code,
-            models.OfferedModule.semester == offer.semester,
-        )
+        .filter(models.OfferedModule.module_code == offer.module_code, models.OfferedModule.semester == offer.semester)
         .first()
     )
+
     if exists:
         raise HTTPException(status_code=400, detail="This module is already offered in this semester")
 
@@ -76,30 +83,29 @@ def create_offer(offer: OfferCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_offer)
 
-    # load names
-    new_offer = (
-        db.query(models.OfferedModule)
-        .options(joinedload(models.OfferedModule.module), joinedload(models.OfferedModule.lecturer))
-        .filter(models.OfferedModule.id == new_offer.id)
-        .first()
-    )
-
     return {
         "id": new_offer.id,
         "module_code": new_offer.module_code,
-        "module_name": new_offer.module.name if new_offer.module else "Unknown Module",
-        "lecturer_name": f"{new_offer.lecturer.first_name} {new_offer.lecturer.last_name}" if new_offer.lecturer else "Unassigned",
+        "module_name": "Just Added",
+        "lecturer_name": "Check List",
         "semester": new_offer.semester,
         "status": new_offer.status,
     }
 
 
+# ✅ NEW: update lecturer assignment (supports null => Unassigned)
 @router.put("/{id}", response_model=OfferResponse)
-def update_offer(id: int, p: OfferUpdate, db: Session = Depends(get_db)):
+def update_offer(
+    id: int,
+    p: OfferUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     item = db.query(models.OfferedModule).filter(models.OfferedModule.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
 
+    # validate lecturer_id if provided
     if p.lecturer_id is not None:
         lec = db.query(models.Lecturer).filter(models.Lecturer.id == p.lecturer_id).first()
         if not lec:
@@ -108,6 +114,7 @@ def update_offer(id: int, p: OfferUpdate, db: Session = Depends(get_db)):
     item.lecturer_id = p.lecturer_id
     db.commit()
 
+    # reload for correct names
     item = (
         db.query(models.OfferedModule)
         .options(joinedload(models.OfferedModule.module), joinedload(models.OfferedModule.lecturer))
@@ -126,7 +133,11 @@ def update_offer(id: int, p: OfferUpdate, db: Session = Depends(get_db)):
 
 
 @router.delete("/{id}")
-def delete_offer(id: int, db: Session = Depends(get_db)):
+def delete_offer(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     item = db.query(models.OfferedModule).filter(models.OfferedModule.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
